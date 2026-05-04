@@ -1,0 +1,11 @@
+# Root gitignore
+Backend/node_modules/
+Backend/.env
+Backend/uploads/
+Backend/*.log
+Backend/rapid-repair-*.json
+
+Frontend/LoginPage/node_modules/
+Frontend/LoginPage/.expo/
+Frontend/LoginPage/dist/
+Frontend/LoginPage/*.log
