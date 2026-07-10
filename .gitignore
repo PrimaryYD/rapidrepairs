@@ -9,3 +9,11 @@ Frontend/LoginPage/node_modules/
 Frontend/LoginPage/.expo/
 Frontend/LoginPage/dist/
 Frontend/LoginPage/*.log
+Frontend/LoginPage/.env
+Frontend/LoginPage/.env.local
+
+# AI Image Recognition
+AI Image Recognition/.env
+AI Image Recognition/.env.local
+AI Image Recognition/__pycache__/
+AI Image Recognition/temp_uploads/

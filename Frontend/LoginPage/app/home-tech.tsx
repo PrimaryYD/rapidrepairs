@@ -4,11 +4,14 @@ import {
     StyleSheet,
     TouchableOpacity,
     Switch,
-    Modal
+    Modal,
+    TextInput,
+    PanResponder
 } from "react-native";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import * as Location from "expo-location";
 
 // FIREBASE
 import { auth, db } from "./_firebaseConfig";
@@ -18,9 +21,23 @@ import {
     updateDoc,
     collection,
     query,
-    where
+    where,
+    addDoc,
+    serverTimestamp
 } from "firebase/firestore";
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, signOut } from "firebase/auth";
+
+const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371; // Radius of the earth in km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c; // Distance in km
+};
 
 export default function HomeTech() {
 
@@ -31,12 +48,33 @@ export default function HomeTech() {
     const [showPopup, setShowPopup] = useState(false);
     const [startTime] = useState(Date.now());
     const [orderCount, setOrderCount] = useState(0);
+    const [showDropdown, setShowDropdown] = useState(false);
+
+    // Withdraw State
+    const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+    const [withdrawAmount, setWithdrawAmount] = useState("");
 
     // Dynamic Dashboard State
     const [techName, setTechName] = useState("Teknisi");
+    const [techCoords, setTechCoords] = useState<{ lat: number, lng: number } | null>(null);
     const [todayIncome, setTodayIncome] = useState(0);
     const [todayCompleted, setTodayCompleted] = useState(0);
-    const [recentActivities, setRecentActivities] = useState<any[]>([]);
+    const [todayOrders, setTodayOrders] = useState<any[]>([]);
+
+    const recentActivities = [...todayOrders].sort((a, b) => b.time - a.time);
+
+    // PanResponder for Modal
+    const panResponder = useRef(
+        PanResponder.create({
+            onStartShouldSetPanResponder: () => true,
+            onMoveShouldSetPanResponder: (_, gestureState) => gestureState.dy > 10,
+            onPanResponderRelease: (_, gestureState) => {
+                if (gestureState.dy > 50) {
+                    setShowWithdrawModal(false);
+                }
+            }
+        })
+    ).current;
 
     /* 🔥 STATUS AKTIF */
     useEffect(() => {
@@ -51,6 +89,9 @@ export default function HomeTech() {
                     if (docSnap.exists()) {
                         setIsActive(docSnap.data().isActive ?? false);
                         setTechName(docSnap.data().name || "Teknisi");
+                        if (docSnap.data().coordinate) {
+                            setTechCoords(docSnap.data().coordinate);
+                        }
                     }
                 },
                 (error) => {
@@ -70,9 +111,39 @@ export default function HomeTech() {
 
         setIsActive(val);
 
-        await updateDoc(doc(db, "technicians", user.uid), {
-            isActive: val
-        });
+        let coordinate = null;
+
+        if (val) {
+            try {
+                let { status } = await Location.requestForegroundPermissionsAsync();
+                if (status !== "granted") {
+                    alert("Izin lokasi diperlukan untuk menerima pesanan.");
+                    setIsActive(false);
+                    return;
+                }
+
+                let loc = await Location.getCurrentPositionAsync({
+                    accuracy: Location.Accuracy.Balanced,
+                });
+                coordinate = {
+                    lat: loc.coords.latitude,
+                    lng: loc.coords.longitude
+                };
+            } catch (error) {
+                console.log("Error getting location:", error);
+                alert("Gagal mengambil lokasi. Pastikan GPS aktif.");
+                setIsActive(false);
+                return;
+            }
+        }
+
+        const updateData: any = { isActive: val };
+        if (coordinate) {
+            updateData.coordinate = coordinate;
+            setTechCoords(coordinate);
+        }
+
+        await updateDoc(doc(db, "technicians", user.uid), updateData);
     };
 
     /* 🔔 LISTENER ORDER */
@@ -138,8 +209,18 @@ export default function HomeTech() {
                     time = data.createdAt.toMillis();
                 }
                 
-                if (data.status === "completed" || data.escrowStatus === "released") {
-                    if (time >= startOfToday.getTime()) {
+                if (time >= startOfToday.getTime()) {
+                    if (data.isWithdrawal) {
+                        income -= (data.amount || 0);
+                        activities.push({
+                            id: docSnap.id,
+                            serviceName: `Pencairan ke Bank ${data.bank || "BCA"}`,
+                            time,
+                            earned: -(data.amount || 0),
+                            isReleased: true,
+                            type: "withdrawal"
+                        });
+                    } else if (data.status === "completed" || data.escrowStatus === "released") {
                         completed += 1;
                         
                         let earned = 0;
@@ -153,7 +234,8 @@ export default function HomeTech() {
                             serviceName: data.serviceType || "Layanan Perbaikan AC",
                             time,
                             earned,
-                            isReleased: data.escrowStatus === "released"
+                            isReleased: data.escrowStatus === "released",
+                            type: "order"
                         });
                     }
                 }
@@ -162,11 +244,13 @@ export default function HomeTech() {
             activities.sort((a, b) => b.time - a.time);
             setTodayIncome(income);
             setTodayCompleted(completed);
-            setRecentActivities(activities);
+            setTodayOrders(activities);
         });
 
         return () => unsub();
     }, []);
+
+
 
     /* ✅ TERIMA */
     const acceptOrder = async () => {
@@ -190,13 +274,65 @@ export default function HomeTech() {
         setIncomingOrder(null);
     };
 
+    // Calculate distance and duration dynamically for the popup modal
+    let displayDistance = "1.2 km";
+    let displayDuration = "3 menit";
+
+    if (techCoords && incomingOrder?.location) {
+        const dist = getDistance(
+            techCoords.lat,
+            techCoords.lng,
+            incomingOrder.location.lat,
+            incomingOrder.location.lng
+        );
+        displayDistance = `${dist.toFixed(1)} km`;
+        // Estimate duration based on speed: e.g. ~2.5 mins per km
+        const estMinutes = Math.max(1, Math.round(dist * 2.5));
+        displayDuration = `${estMinutes} menit`;
+    }
+
     return (
         <View style={styles.container}>
 
             {/* HEADER */}
             <View style={styles.header}>
-                <View style={styles.headerLeft}>
-                    <View style={styles.avatar} />
+                <View style={[styles.headerLeft, { zIndex: 9999 }]}>
+                    <View style={{ position: "relative" }}>
+                        <TouchableOpacity 
+                            style={styles.avatar}
+                            onPress={() => setShowDropdown(!showDropdown)}
+                        />
+                        {showDropdown && (
+                            <View style={styles.dropdown}>
+                                <TouchableOpacity 
+                                    style={styles.dropdownItem}
+                                    onPress={() => {
+                                        setShowDropdown(false);
+                                        alert("Account settings clicked");
+                                    }}
+                                >
+                                    <Ionicons name="settings-outline" size={14} color="#333" style={{ marginRight: 6 }} />
+                                    <Text style={styles.dropdownText}>Account Setting</Text>
+                                </TouchableOpacity>
+                                <View style={styles.dropdownSeparator} />
+                                <TouchableOpacity 
+                                    style={styles.dropdownItem}
+                                    onPress={async () => {
+                                        setShowDropdown(false);
+                                        try {
+                                            await signOut(auth);
+                                            router.replace("/login" as any);
+                                        } catch (e) {
+                                            console.error("Logout error", e);
+                                        }
+                                    }}
+                                >
+                                    <Ionicons name="log-out-outline" size={14} color="#E74C3C" style={{ marginRight: 6 }} />
+                                    <Text style={[styles.dropdownText, { color: "#E74C3C" }]}>Logout</Text>
+                                </TouchableOpacity>
+                            </View>
+                        )}
+                    </View>
                     <Text style={styles.greeting}>Halo, {techName}!</Text>
                 </View>
 
@@ -264,6 +400,13 @@ export default function HomeTech() {
                 <View style={styles.summaryCard}>
                     <Text style={styles.summaryLabel}>PENDAPATAN</Text>
                     <Text style={styles.summaryValue}>Rp {todayIncome.toLocaleString("id-ID")}</Text>
+                    
+                    <TouchableOpacity 
+                        style={styles.tarikDanaBtn}
+                        onPress={() => setShowWithdrawModal(true)}
+                    >
+                        <Text style={styles.tarikDanaText}>Tarik Dana</Text>
+                    </TouchableOpacity>
                 </View>
 
                 <View style={styles.summaryCard}>
@@ -278,8 +421,12 @@ export default function HomeTech() {
             {recentActivities.length > 0 ? (
                 recentActivities.slice(0, 3).map((act) => (
                     <View key={act.id} style={styles.activityCard}>
-                        <View style={styles.iconCircle}>
-                            <Ionicons name="checkmark" size={16} color="#2ECC71" />
+                        <View style={[styles.iconCircle, act.type === "withdrawal" && { backgroundColor: "#FFF7E6" }]}>
+                            {act.type === "withdrawal" ? (
+                                <Ionicons name="arrow-up" size={16} color="#F39C12" style={{ transform: [{ rotate: "45deg" }] }} />
+                            ) : (
+                                <Ionicons name="arrow-down" size={16} color="#2ECC71" style={{ transform: [{ rotate: "45deg" }] }} />
+                            )}
                         </View>
 
                         <View style={{ flex: 1 }}>
@@ -289,7 +436,9 @@ export default function HomeTech() {
                             </Text>
                         </View>
 
-                        {act.isReleased ? (
+                        {act.type === "withdrawal" ? (
+                            <Text style={[styles.activityPrice, { color: '#E74C3C' }]}>- Rp {Math.abs(act.earned).toLocaleString("id-ID")}</Text>
+                        ) : act.isReleased ? (
                             <Text style={styles.activityPrice}>+ Rp {act.earned.toLocaleString("id-ID")}</Text>
                         ) : (
                             <Text style={[styles.activityPrice, { color: '#B3875E' }]}>Menunggu Cair</Text>
@@ -364,7 +513,7 @@ export default function HomeTech() {
                                 <Text style={styles.customerName}>{incomingOrder?.userName || "Bryant"}</Text>
                                 <View style={styles.customerMeta}>
                                     <Ionicons name="location-sharp" size={12} color="#8B5E3C" />
-                                    <Text style={styles.metaText}>1.2 km dari Anda</Text>
+                                    <Text style={styles.metaText}>{displayDistance} ({displayDuration}) dari Anda</Text>
                                 </View>
                                 <View style={styles.ratingRow}>
                                     <Ionicons name="star" size={12} color="#F1C40F" />
@@ -394,6 +543,84 @@ export default function HomeTech() {
 
                         <TouchableOpacity style={styles.rejectBtnRedesign} onPress={rejectOrder}>
                             <Text style={styles.rejectBtnTextRedesign}>Tolak</Text>
+                        </TouchableOpacity>
+
+                    </View>
+                </View>
+            </Modal>
+
+            {/* 💰 MODAL TARIK DANA */}
+            <Modal
+                visible={showWithdrawModal}
+                transparent
+                animationType="slide"
+            >
+                <View style={styles.withdrawModalOverlay}>
+                    <View style={styles.withdrawModalContent} {...panResponder.panHandlers}>
+                        
+                        <View style={styles.withdrawHandle} />
+
+                        <Text style={styles.withdrawTitle}>Tarik Dana</Text>
+
+                        <View style={styles.withdrawInputHeader}>
+                            <Text style={styles.withdrawLabel}>Nominal Penarikan</Text>
+                            <TouchableOpacity onPress={() => setWithdrawAmount(todayIncome.toString())}>
+                                <Text style={styles.tarikSemuaText}>Tarik Semua</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={styles.withdrawInputContainer}>
+                            <Text style={styles.withdrawCurrency}>Rp </Text>
+                            <TextInput
+                                style={styles.withdrawInput}
+                                keyboardType="numeric"
+                                value={withdrawAmount}
+                                onChangeText={setWithdrawAmount}
+                                placeholder="0"
+                                placeholderTextColor="#999"
+                            />
+                        </View>
+
+                        <View style={styles.bankCard}>
+                            <View style={styles.bankLogoCircle}>
+                                <Text style={styles.bankLogoText}>BCA</Text>
+                            </View>
+                            <View>
+                                <Text style={styles.bankNameText}>BCA - 123456789</Text>
+                                <Text style={styles.bankOwnerText}>a.n. Budi Santoso</Text>
+                            </View>
+                        </View>
+
+                        <TouchableOpacity 
+                            style={styles.confirmWithdrawBtn}
+                            onPress={async () => {
+                                const amountStr = withdrawAmount || "0";
+                                setShowWithdrawModal(false);
+                                
+                                const user = auth.currentUser;
+                                if (user) {
+                                    try {
+                                        await addDoc(collection(db, "orders"), {
+                                            technicianId: user.uid,
+                                            isWithdrawal: true,
+                                            amount: parseInt(amountStr),
+                                            bank: "BCA",
+                                            status: "processing",
+                                            createdAt: serverTimestamp()
+                                        });
+                                    } catch (e) {
+                                        console.log("Withdrawal save error", e);
+                                    }
+                                }
+
+                                router.push({
+                                    pathname: "/withdraw-processing",
+                                    params: { amount: amountStr }
+                                });
+                                setWithdrawAmount("");
+                            }}
+                        >
+                            <Text style={styles.confirmWithdrawText}>Konfirmasi Penarikan</Text>
                         </TouchableOpacity>
 
                     </View>
@@ -557,7 +784,8 @@ const styles = StyleSheet.create({
         borderRadius: 14,
         flexDirection: "row",
         alignItems: "center",
-        elevation: 2
+        elevation: 2,
+        marginBottom: 12
     },
 
     iconCircle: {
@@ -780,6 +1008,167 @@ const styles = StyleSheet.create({
     },
     rejectBtnTextRedesign: {
         color: "#C5A880",
+        fontWeight: "bold",
+        fontSize: 15
+    },
+    dropdown: {
+        position: "absolute",
+        left: 0,
+        top: 40,
+        backgroundColor: "#fff",
+        borderRadius: 12,
+        padding: 6,
+        width: 140,
+        shadowColor: "#000",
+        shadowOpacity: 0.1,
+        shadowRadius: 10,
+        elevation: 5,
+        zIndex: 10000,
+        borderWidth: 1,
+        borderColor: "#eee"
+    },
+    dropdownItem: {
+        flexDirection: "row",
+        alignItems: "center",
+        paddingVertical: 10,
+        paddingHorizontal: 10,
+        borderRadius: 8
+    },
+    dropdownText: {
+        fontSize: 12,
+        color: "#333",
+        fontWeight: "500"
+    },
+    dropdownSeparator: {
+        height: 1,
+        backgroundColor: "#eee",
+        marginVertical: 2
+    },
+
+    /* TARIK DANA STYLES */
+    tarikDanaBtn: {
+        backgroundColor: "#8B5E3C",
+        paddingVertical: 8,
+        borderRadius: 10,
+        marginTop: 10,
+        alignItems: "center"
+    },
+    tarikDanaText: {
+        color: "#fff",
+        fontSize: 11,
+        fontWeight: "600"
+    },
+    withdrawModalOverlay: {
+        flex: 1,
+        backgroundColor: "rgba(0,0,0,0.5)",
+        justifyContent: "flex-end"
+    },
+    withdrawModalContent: {
+        backgroundColor: "#fff",
+        borderTopLeftRadius: 30,
+        borderTopRightRadius: 30,
+        padding: 25,
+        alignItems: "center",
+        elevation: 10
+    },
+    withdrawHandle: {
+        width: 40,
+        height: 4,
+        backgroundColor: "#ccc",
+        borderRadius: 2,
+        marginBottom: 20
+    },
+    withdrawTitle: {
+        fontSize: 18,
+        fontWeight: "bold",
+        color: "#333",
+        marginBottom: 25
+    },
+    withdrawInputHeader: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        width: "100%",
+        marginBottom: 10
+    },
+    withdrawLabel: {
+        fontSize: 12,
+        fontWeight: "bold",
+        color: "#777"
+    },
+    tarikSemuaText: {
+        fontSize: 12,
+        fontWeight: "bold",
+        color: "#8B5E3C"
+    },
+    withdrawInputContainer: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "#F9F6F2",
+        borderRadius: 15,
+        paddingHorizontal: 15,
+        paddingVertical: 12,
+        width: "100%",
+        marginBottom: 20,
+        borderWidth: 1,
+        borderColor: "#EBE3D5"
+    },
+    withdrawCurrency: {
+        fontSize: 18,
+        fontWeight: "bold",
+        color: "#333"
+    },
+    withdrawInput: {
+        flex: 1,
+        fontSize: 18,
+        fontWeight: "bold",
+        color: "#333"
+    },
+    bankCard: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "#F9F6F2",
+        borderRadius: 15,
+        padding: 15,
+        width: "100%",
+        marginBottom: 30,
+        borderWidth: 1,
+        borderColor: "#EBE3D5"
+    },
+    bankLogoCircle: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: "#fff",
+        justifyContent: "center",
+        alignItems: "center",
+        marginRight: 15,
+        borderWidth: 1,
+        borderColor: "#eee"
+    },
+    bankLogoText: {
+        fontSize: 12,
+        fontWeight: "bold",
+        color: "#006699"
+    },
+    bankNameText: {
+        fontSize: 14,
+        fontWeight: "bold",
+        color: "#333"
+    },
+    bankOwnerText: {
+        fontSize: 11,
+        color: "#777",
+        marginTop: 2
+    },
+    confirmWithdrawBtn: {
+        backgroundColor: "#8B5E3C",
+        width: "100%",
+        paddingVertical: 15,
+        borderRadius: 20,
+        alignItems: "center"
+    },
+    confirmWithdrawText: {
+        color: "#fff",
         fontWeight: "bold",
         fontSize: 15
     }

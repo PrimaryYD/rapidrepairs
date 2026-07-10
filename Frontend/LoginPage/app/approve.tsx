@@ -70,7 +70,11 @@ export default function AdminApprove() {
             setLoading(true);
             
             // 1. Fetch Technicians
-            const techResponse = await fetch(`${BASE_URL}/technicians`);
+            const techResponse = await fetch(`${BASE_URL}/technicians`, {
+                headers: {
+                    "bypass-tunnel-reminder": "true"
+                }
+            });
             if (!techResponse.ok) throw new Error("Gagal mengambil data teknisi");
             const techData = await techResponse.json();
             const sortedTechs = techData.sort((a: any, b: any) => {
@@ -81,7 +85,11 @@ export default function AdminApprove() {
             setTechnicians(sortedTechs);
 
             // 2. Fetch Orders
-            const orderResponse = await fetch(`${BASE_URL}/api/admin/orders`);
+            const orderResponse = await fetch(`${BASE_URL}/api/admin/orders`, {
+                headers: {
+                    "bypass-tunnel-reminder": "true"
+                }
+            });
             if (!orderResponse.ok) throw new Error("Gagal mengambil data order");
             const orderData = await orderResponse.json();
             const sortedOrders = orderData.sort((a: any, b: any) => {
@@ -123,7 +131,8 @@ export default function AdminApprove() {
                             const response = await fetch(`${BASE_URL}/technician/approve`, {
                                 method: "POST",
                                 headers: {
-                                    "Content-Type": "application/json"
+                                    "Content-Type": "application/json",
+                                    "bypass-tunnel-reminder": "true"
                                 },
                                 body: JSON.stringify({ uid })
                             });
@@ -192,7 +201,8 @@ export default function AdminApprove() {
                             const response = await fetch(`${BASE_URL}/api/admin/orders/release-escrow`, {
                                 method: "POST",
                                 headers: {
-                                    "Content-Type": "application/json"
+                                    "Content-Type": "application/json",
+                                    "bypass-tunnel-reminder": "true"
                                 },
                                 body: JSON.stringify({ orderId })
                             });

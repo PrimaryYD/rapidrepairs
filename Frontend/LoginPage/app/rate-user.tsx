@@ -5,12 +5,10 @@ import {
     StyleSheet,
     TouchableOpacity,
     ScrollView,
-    Image,
     ActivityIndicator,
     Animated,
     Easing,
     Alert,
-    TextInput,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -18,20 +16,17 @@ import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { db } from "./_firebaseConfig";
 import { Ionicons } from "@expo/vector-icons";
 
-export default function DoneScreen() {
+export default function RateUserScreen() {
     const router = useRouter();
     const { orderId } = useLocalSearchParams();
     
     const [order, setOrder] = useState<any>(null);
-    const [techName, setTechName] = useState("Budi Santoso");
-    const [techPhoto, setTechPhoto] = useState<string | null>(null);
+    const [userName, setUserName] = useState("Pelanggan");
     const [rating, setRating] = useState(0);
     const [selectedTags, setSelectedTags] = useState<string[]>([]);
     const [isLoading, setIsLoading] = useState(true);
-    const [showCustomReview, setShowCustomReview] = useState(false);
-    const [customReviewText, setCustomReviewText] = useState("");
 
-    const quickTags = ["Teknisi Cepat", "Kerja Rapi", "Responsif"];
+    const quickTags = ["Pelanggan Ramah", "Sesuai Titik Maps", "Responsif", "Komunikasi Baik"];
 
     // Success Animations
     const scaleAnim = useRef(new Animated.Value(0)).current;
@@ -65,22 +60,10 @@ export default function DoneScreen() {
                 if (orderSnap.exists()) {
                     const orderData = orderSnap.data();
                     setOrder(orderData);
-
-                    if (orderData.technicianId) {
-                        const techSnap = await getDoc(doc(db, "technicians", orderData.technicianId));
-                        if (techSnap.exists()) {
-                            const techData = techSnap.data();
-                            setTechName(techData.name || "Budi Santoso");
-                            
-                            // Check if technician has a selfie photo to use as avatar
-                            if (techData.selfiePhotos && techData.selfiePhotos.length > 0) {
-                                setTechPhoto(techData.selfiePhotos[0]);
-                            }
-                        }
-                    }
+                    setUserName(orderData.userName || "Pelanggan");
                 }
             } catch (err) {
-                console.log("Error loading details in done screen:", err);
+                console.log("Error loading details in rate-user screen:", err);
             } finally {
                 setIsLoading(false);
             }
@@ -106,18 +89,17 @@ export default function DoneScreen() {
         try {
             if (orderId) {
                 await updateDoc(doc(db, "orders", orderId as string), {
-                    techRating: rating,
-                    techReviewTags: selectedTags,
-                    techReviewComment: showCustomReview ? customReviewText : "",
-                    techRated: true
+                    userRating: rating,
+                    userReviewTags: selectedTags,
+                    userRated: true
                 });
             }
             router.replace({
                 pathname: "/review-success",
-                params: { role: "user" }
-            } as any);
+                params: { role: "technician" }
+            });
         } catch (err) {
-            console.log("Error saving technician rating:", err);
+            console.log("Error saving user rating:", err);
             Alert.alert("Kesalahan", "Gagal mengirim penilaian. Silakan coba lagi.");
         } finally {
             setIsLoading(false);
@@ -178,26 +160,22 @@ export default function DoneScreen() {
                     <Text style={styles.title}>Pekerjaan Selesai!</Text>
                 </View>
 
-                {/* 2. OVERLAPPING TECHNICIAN FEEDBACK CARD */}
+                {/* 2. OVERLAPPING USER FEEDBACK CARD */}
                 <View style={styles.feedbackCard}>
                     
                     {/* AVATAR OVERLAP */}
                     <View style={styles.avatarWrapper}>
-                        {techPhoto ? (
-                            <Image source={{ uri: techPhoto }} style={styles.avatarImage} />
-                        ) : (
-                            <Ionicons name="person" size={40} color="#ccc" />
-                        )}
+                        <Ionicons name="person" size={40} color="#ccc" />
                     </View>
 
-                    {/* NAME AND SPECIALTY */}
-                    <Text style={styles.techName}>Bapak {techName}</Text>
-                    <Text style={styles.techSpec}>Spesialis A/C</Text>
+                    {/* NAME AND ROLE */}
+                    <Text style={styles.techName}>{userName}</Text>
+                    <Text style={styles.techSpec}>Pelanggan</Text>
 
                     <View style={styles.cardDivider} />
 
                     {/* CALL TO ACTION */}
-                    <Text style={styles.feedbackHeading}>Kerja selesai! Beri nilai untuk Teknisi</Text>
+                    <Text style={styles.feedbackHeading}>Beri nilai untuk Pelanggan</Text>
 
                     {/* INTERACTIVE STAR RATING */}
                     <View style={styles.starRow}>
@@ -230,32 +208,7 @@ export default function DoneScreen() {
                                 </TouchableOpacity>
                             );
                         })}
-                        {/* Lainnya button */}
-                        <TouchableOpacity
-                            style={[styles.tagPill, showCustomReview && styles.tagPillSelected]}
-                            onPress={() => setShowCustomReview(!showCustomReview)}
-                            activeOpacity={0.8}
-                        >
-                            <Text style={[styles.tagText, showCustomReview && styles.tagTextSelected]}>
-                                Lainnya
-                            </Text>
-                        </TouchableOpacity>
                     </View>
-
-                    {/* EDITABLE REVIEW COMMENT */}
-                    {showCustomReview && (
-                        <View style={styles.customReviewContainer}>
-                            <TextInput
-                                style={styles.customReviewInput}
-                                placeholder="Tulis kritik atau saran Anda di sini..."
-                                placeholderTextColor="#999"
-                                multiline
-                                numberOfLines={4}
-                                value={customReviewText}
-                                onChangeText={setCustomReviewText}
-                            />
-                        </View>
-                    )}
 
                     {/* SUBMIT BUTTON */}
                     <TouchableOpacity style={styles.submitBtn} onPress={handleSubmitReview}>
@@ -367,11 +320,6 @@ const styles = StyleSheet.create({
         shadowRadius: 5,
         elevation: 4,
     },
-    avatarImage: {
-        width: "100%",
-        height: "100%",
-        borderRadius: 40,
-    },
     techName: {
         fontSize: 18,
         fontWeight: "800",
@@ -405,24 +353,7 @@ const styles = StyleSheet.create({
         flexWrap: "wrap",
         justifyContent: "center",
         gap: 10,
-        marginBottom: 20,
-    },
-    customReviewContainer: {
-        width: "100%",
-        marginBottom: 20,
-    },
-    customReviewInput: {
-        width: "100%",
-        minHeight: 100,
-        backgroundColor: "#FAF6F0",
-        borderRadius: 16,
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        fontSize: 14,
-        color: "#333",
-        borderWidth: 1,
-        borderColor: "#EAE6DF",
-        textAlignVertical: "top",
+        marginBottom: 35,
     },
     tagPill: {
         backgroundColor: "#fff",

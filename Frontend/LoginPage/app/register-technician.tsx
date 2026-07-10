@@ -303,12 +303,22 @@ export default function RegisterTechnician() {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
+                    "bypass-tunnel-reminder": "true"
                 },
                 body: JSON.stringify(payload),
             });
 
-
-            const result = await response.json();
+            let result: any = {};
+            const contentType = response.headers.get("content-type");
+            if (contentType && contentType.includes("application/json")) {
+                result = await response.json();
+            } else {
+                const text = await response.text();
+                if (text.includes("502") || text.includes("Bad Gateway") || text.includes("tunnel")) {
+                    throw new Error("Backend server tidak merespon (502 Bad Gateway). Pastikan localtunnel / server backend Anda sudah berjalan.");
+                }
+                throw new Error(text.substring(0, 150) || `HTTP Error ${response.status}`);
+            }
 
             if (!response.ok) {
                 throw new Error(result.error || "Gagal mendaftar ke server");
@@ -327,7 +337,9 @@ export default function RegisterTechnician() {
             console.error("❌ ERROR REGISTER:", error);
             let errorMsg = error.message;
             if (error.message === "Network request failed") {
-                errorMsg = "Gagal terhubung ke server. Pastikan IP di api.js sudah benar dan server sudah jalan.";
+                errorMsg = "Gagal terhubung ke server. Pastikan IP di api.js sudah benar, server sudah jalan, dan localtunnel aktif.";
+            } else if (error.message && error.message.includes("JSON Parse error")) {
+                errorMsg = "Gagal memproses respon server. Pastikan localtunnel / server backend Anda sudah aktif.";
             }
             alert("Error: " + errorMsg);
         } finally {
@@ -336,9 +348,15 @@ export default function RegisterTechnician() {
     };
 
     const renderProgress = () => {
-        // According to the image, it uses 50% for step 1, 100% for step 2 & 3. We'll use 50%, 100%, 100% to match mockup
-        const percentage = step === 1 ? "50%" : "100%";
-        const fillWidth = step === 1 ? "50%" : "100%";
+        let percentage = "33%";
+        let fillWidth = "33%";
+        if (step === 2) {
+            percentage = "66%";
+            fillWidth = "66%";
+        } else if (step === 3) {
+            percentage = "100%";
+            fillWidth = "100%";
+        }
 
         return (
             <View style={styles.progressSection}>
@@ -374,7 +392,7 @@ export default function RegisterTechnician() {
             )}
 
             {/* BODY */}
-            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
                 {/* ================= STEP 1 ================= */}
                 {step === 1 && (
@@ -504,58 +522,58 @@ export default function RegisterTechnician() {
 
                         <Text style={styles.label}>Upload KTP, Selfie, & Bukti Kerja</Text>
                         <View style={styles.uploadContainer}>
-                                <View style={styles.uploadRow}>
-                                    <TouchableOpacity style={styles.uploadBox} onPress={() => pickImage(setKtpImage)}>
-                                        {ktpImage ? (
-                                            <Image source={{ uri: ktpImage.uri }} style={styles.uploadedImage} />
-                                        ) : (
-                                            <View style={{ alignItems: 'center' }}>
-                                                <Ionicons name="camera-outline" size={28} color="#B3875E" />
-                                                <Text style={styles.uploadTitle}>Foto KTP +</Text>
-                                                <Text style={styles.uploadSub}>Selfie dengan KTP</Text>
+                            {/* KTP Upload Box (Full Width) */}
+                            <TouchableOpacity style={styles.ktpUploadBox} onPress={() => pickImage(setKtpImage)}>
+                                {ktpImage ? (
+                                    <Image source={{ uri: ktpImage.uri }} style={styles.uploadedImage} resizeMode="cover" />
+                                ) : (
+                                    <View style={{ alignItems: 'center' }}>
+                                        <Ionicons name="camera-outline" size={28} color="#B3875E" />
+                                        <Text style={styles.uploadTitle}>Foto KTP +</Text>
+                                        <Text style={styles.uploadSub}>Selfie dengan KTP</Text>
+                                    </View>
+                                )}
+                            </TouchableOpacity>
+                            
+                            {/* Horizontal Divider */}
+                            <View style={styles.uploadDividerHorizontal} />
+
+                            {/* Bukti Kerja Section (Horizontal ScrollView at the bottom) */}
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.workScrollView}>
+                                <View style={{ flexDirection: 'row' }}>
+                                    {/* Render existing images */}
+                                    {workImages.map((img, idx) => (
+                                        <TouchableOpacity 
+                                            key={idx} 
+                                            style={styles.workUploadBox}
+                                            onPress={() => {
+                                                const newImgs = [...workImages];
+                                                newImgs.splice(idx, 1);
+                                                setWorkImages(newImgs);
+                                            }}
+                                        >
+                                            <Image source={{ uri: img.uri }} style={styles.uploadedImage} resizeMode="cover" />
+                                            <View style={styles.deleteBadge}>
+                                                <Ionicons name="close" size={12} color="#FFF" />
                                             </View>
-                                        )}
-                                    </TouchableOpacity>
-                                    
-                                    <View style={styles.uploadDivider} />
+                                        </TouchableOpacity>
+                                    ))}
 
-                                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
-                                        <View style={{ flexDirection: 'row' }}>
-                                            {/* Render existing images */}
-                                            {workImages.map((img, idx) => (
-                                                <TouchableOpacity 
-                                                    key={idx} 
-                                                    style={[styles.uploadBox, { marginRight: 10 }]}
-                                                    onPress={() => {
-                                                        const newImgs = [...workImages];
-                                                        newImgs.splice(idx, 1);
-                                                        setWorkImages(newImgs);
-                                                    }}
-                                                >
-                                                    <Image source={{ uri: img.uri }} style={styles.uploadedImage} />
-                                                    <View style={styles.deleteBadge}>
-                                                        <Ionicons name="close" size={12} color="#FFF" />
-                                                    </View>
-                                                </TouchableOpacity>
-                                            ))}
-
-                                            {/* Add Button (if < 5) */}
-                                            {workImages.length < 5 && (
-                                                <TouchableOpacity 
-                                                    style={styles.uploadBox} 
-                                                    onPress={() => pickImage((img: ImageType) => setWorkImages([...workImages, img]))}
-                                                >
-                                                    <View style={{ alignItems: 'center' }}>
-                                                        <Ionicons name="image-outline" size={28} color="#B3875E" />
-                                                        <Text style={styles.uploadTitle}>Bukti Kerja +</Text>
-                                                        <Text style={styles.uploadSub}>({workImages.length}/5 Foto)</Text>
-                                                    </View>
-                                                </TouchableOpacity>
-                                            )}
-                                        </View>
-                                    </ScrollView>
+                                    {/* Add Button (if < 5) */}
+                                    {workImages.length < 5 && (
+                                        <TouchableOpacity 
+                                            style={styles.workUploadBox} 
+                                            onPress={() => pickImage((img: ImageType) => setWorkImages([...workImages, img]))}
+                                        >
+                                            <View style={{ alignItems: 'center' }}>
+                                                <Ionicons name="image-outline" size={28} color="#B3875E" />
+                                                <Text style={styles.uploadTitle}>Bukti Kerja +</Text>
+                                                <Text style={styles.uploadSub}>({workImages.length}/5 Foto)</Text>
+                                            </View>
+                                        </TouchableOpacity>
+                                    )}
                                 </View>
-
+                            </ScrollView>
                         </View>
                         <Text style={styles.uploadNote}>
                             Unggah minimal 3 foto bukti kerja untuk menunjukan pengalaman Anda
@@ -870,7 +888,7 @@ const styles = StyleSheet.create({
     },
     scrollContent: {
         paddingHorizontal: 20,
-        paddingBottom: 100, // room for bottom bar
+        paddingBottom: 160, // room for bottom bar
     },
     stepContainer: {
         marginTop: 5,
@@ -1037,6 +1055,38 @@ const styles = StyleSheet.create({
         height: "80%",
         backgroundColor: "#D2C4B7",
         marginHorizontal: 10,
+    },
+    ktpUploadBox: {
+        width: "100%",
+        height: 160,
+        backgroundColor: "#FFF",
+        borderRadius: 12,
+        justifyContent: "center",
+        alignItems: "center",
+        borderWidth: 1,
+        borderColor: "#EFEBE4",
+        overflow: "hidden",
+    },
+    uploadDividerHorizontal: {
+        height: 1,
+        backgroundColor: "#D2C4B7",
+        width: "100%",
+        marginVertical: 15,
+    },
+    workScrollView: {
+        width: "100%",
+    },
+    workUploadBox: {
+        width: 120,
+        height: 120,
+        backgroundColor: "#FFF",
+        borderRadius: 12,
+        justifyContent: "center",
+        alignItems: "center",
+        borderWidth: 1,
+        borderColor: "#EFEBE4",
+        marginRight: 10,
+        overflow: "hidden",
     },
     uploadTitle: {
         fontSize: 12,

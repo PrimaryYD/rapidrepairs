@@ -176,6 +176,7 @@ export default function DoRepairScreen() {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
+                    "bypass-tunnel-reminder": "true",
                 },
                 body: JSON.stringify({
                     orderId,
@@ -364,8 +365,10 @@ export default function DoRepairScreen() {
                         <TouchableOpacity 
                             style={styles.successPrimaryBtn} 
                             onPress={() => {
-                                Alert.alert("Penilaian", "Terima kasih telah memberikan penilaian!");
-                                router.replace("/home-tech" as any);
+                                router.replace({
+                                    pathname: "/rate-user",
+                                    params: { orderId: orderId }
+                                } as any);
                             }}
                         >
                             <Text style={styles.successPrimaryText}>Berikan Penilaian kepada Pengguna</Text>

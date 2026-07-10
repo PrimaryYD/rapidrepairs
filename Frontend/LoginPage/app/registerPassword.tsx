@@ -69,7 +69,10 @@ export default function RegisterPassword() {
             console.log("Attempting to save profile via:", `${BASE_URL}/api/create-profile`);
             const response = await fetch(`${BASE_URL}/api/create-profile`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: { 
+                    "Content-Type": "application/json",
+                    "bypass-tunnel-reminder": "true"
+                },
                 body: JSON.stringify({
                     uid,
                     name,
@@ -80,8 +83,24 @@ export default function RegisterPassword() {
             });
 
             if (!response.ok) {
-                const errorData = await response.json();
-                throw new Error(errorData.error || "Gagal membuat profile");
+                let errorMsg = "Gagal membuat profile";
+                try {
+                    const contentType = response.headers.get("content-type");
+                    if (contentType && contentType.includes("application/json")) {
+                        const errorData = await response.json();
+                        errorMsg = errorData.error || errorMsg;
+                    } else {
+                        const text = await response.text();
+                        if (text.includes("502") || text.includes("Bad Gateway") || text.includes("tunnel")) {
+                            errorMsg = "Backend server tidak merespon (502 Bad Gateway). Pastikan localtunnel / server backend Anda sudah berjalan.";
+                        } else {
+                            errorMsg = text.substring(0, 150) || errorMsg;
+                        }
+                    }
+                } catch (parseErr) {
+                    errorMsg = `Gagal membuat profile (HTTP ${response.status})`;
+                }
+                throw new Error(errorMsg);
             }
 
             console.log("User profile saved successfully via Backend");
@@ -93,7 +112,9 @@ export default function RegisterPassword() {
             
             let errorMsg = error.message;
             if (error.message === "Network request failed") {
-                errorMsg = "Gagal terhubung ke server. Pastikan IP di api.js sudah benar dan server sudah jalan.";
+                errorMsg = "Gagal terhubung ke server. Pastikan IP di api.js sudah benar, server sudah jalan, dan localtunnel aktif.";
+            } else if (error.message && error.message.includes("JSON Parse error")) {
+                errorMsg = "Gagal memproses respon server. Pastikan localtunnel / server backend Anda sudah aktif.";
             }
 
             // 🔥 CLEANUP: If user was created in Auth but profile failed, delete it

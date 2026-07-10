@@ -21,6 +21,7 @@ import { setTempData } from "../utils/tempStorage";
 type ImageType = {
     uri: string;
     base64?: string;
+    fileName?: string;
 };
 
 export default function UploadEvidence() {
@@ -87,7 +88,8 @@ export default function UploadEvidence() {
             
             const newImageObj: ImageType = {
                 uri: newUri,
-                base64: newBase64
+                base64: newBase64,
+                fileName: result.assets[0].fileName || newUri.split('/').pop() || ""
             };
             
             setEvidenceImages(prev => ({

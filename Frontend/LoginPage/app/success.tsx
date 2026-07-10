@@ -39,6 +39,7 @@ export default function SuccessScreen() {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
+                    "bypass-tunnel-reminder": "true"
                 },
                 body: JSON.stringify({
                     total: Number(total),

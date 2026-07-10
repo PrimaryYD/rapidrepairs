@@ -1,11 +1,20 @@
 import {  View, Text, StyleSheet, TouchableOpacity , ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 
 export default function ReviewSuccess() {
 
     const router = useRouter();
+    const { role } = useLocalSearchParams();
+
+    const handleBackToHome = () => {
+        if (role === "technician") {
+            router.replace("/home-tech" as any);
+        } else {
+            router.replace("/Homepage" as any);
+        }
+    };
 
     return (
     <SafeAreaView style={{flex:1}}>
@@ -24,7 +33,7 @@ export default function ReviewSuccess() {
 
             <TouchableOpacity
                 style={styles.button}
-                onPress={() => router.replace("/Homepage" as any)}
+                onPress={handleBackToHome}
             >
                 <Text style={{ color: "#fff" }}>Kembali ke Beranda</Text>
             </TouchableOpacity>

@@ -120,6 +120,32 @@ export default function TrackingTech() {
         );
     }
 
+    const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+        const R = 6371; // Radius of the earth in km
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a =
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c; // Distance in km
+    };
+
+    let displayDistance = "1.5 km";
+    let displayDuration = "4 menit";
+
+    if (techLocation && order?.location) {
+        const d = getDistance(
+            techLocation.latitude,
+            techLocation.longitude,
+            order.location.lat,
+            order.location.lng
+        );
+        displayDistance = `${d.toFixed(1)} km`;
+        displayDuration = `${Math.max(1, Math.round(d * 2.5))} menit`;
+    }
+
     return (
         <View style={styles.container}>
 
@@ -164,6 +190,19 @@ export default function TrackingTech() {
                     <TouchableOpacity style={styles.iconBtn} onPress={() => Linking.openURL(`tel:08123456789`)}>
                         <Ionicons name="call-outline" size={20} color="#333" />
                     </TouchableOpacity>
+                </View>
+
+                {/* ESTIMATION ROW */}
+                <View style={styles.estimationRow}>
+                    <View style={styles.estimationCol}>
+                        <Ionicons name="trail-sign-outline" size={18} color="#8B5E3C" />
+                        <Text style={styles.estimationText}>{displayDistance}</Text>
+                    </View>
+                    <View style={styles.estimationSeparator} />
+                    <View style={styles.estimationCol}>
+                        <Ionicons name="time-outline" size={18} color="#8B5E3C" />
+                        <Text style={styles.estimationText}>{displayDuration}</Text>
+                    </View>
                 </View>
 
                 <TouchableOpacity style={styles.arrivedBtn} onPress={finishOrder}>
@@ -283,5 +322,31 @@ const styles = StyleSheet.create({
         color: "#fff",
         fontWeight: "bold",
         fontSize: 15
-    }
+    },
+    estimationRow: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        backgroundColor: "#F9F6F2",
+        padding: 12,
+        borderRadius: 15,
+        marginBottom: 15,
+    },
+    estimationCol: {
+        flex: 1,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 6,
+    },
+    estimationText: {
+        fontSize: 13,
+        fontWeight: "700",
+        color: "#333",
+    },
+    estimationSeparator: {
+        width: 1,
+        height: 20,
+        backgroundColor: "#E2D8CD",
+    },
 });

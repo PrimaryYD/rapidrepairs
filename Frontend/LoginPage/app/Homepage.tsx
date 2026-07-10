@@ -14,13 +14,14 @@ import { useState, useEffect } from "react";
 // 🔥 FIREBASE
 import { auth, db } from "./_firebaseConfig";
 import { doc, onSnapshot } from "firebase/firestore";
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, signOut } from "firebase/auth";
 
 export default function Home() {
   const router = useRouter();
 
   // 🔥 STATUS: null | pending | approved
   const [statusTeknisi, setStatusTeknisi] = useState<string | null>(null);
+  const [showDropdown, setShowDropdown] = useState(false);
 
   // 🔥 REALTIME LISTENER (ANTI GAGAL)
   useEffect(() => {
@@ -86,8 +87,44 @@ export default function Home() {
             <TextInput placeholder="Kulkas" style={styles.searchInput} />
           </View>
 
-          <View style={styles.profileIcon}>
-            <Ionicons name="person-outline" size={18} color="#444" />
+          <View style={{ position: "relative", zIndex: 9999 }}>
+            <TouchableOpacity 
+              style={styles.profileIcon}
+              onPress={() => setShowDropdown(!showDropdown)}
+            >
+              <Ionicons name="person-outline" size={18} color="#444" />
+            </TouchableOpacity>
+
+            {showDropdown && (
+              <View style={styles.dropdown}>
+                <TouchableOpacity 
+                  style={styles.dropdownItem}
+                  onPress={() => {
+                    setShowDropdown(false);
+                    alert("Account settings clicked");
+                  }}
+                >
+                  <Ionicons name="settings-outline" size={14} color="#333" style={{ marginRight: 6 }} />
+                  <Text style={styles.dropdownText}>Account Setting</Text>
+                </TouchableOpacity>
+                <View style={styles.dropdownSeparator} />
+                <TouchableOpacity 
+                  style={styles.dropdownItem}
+                  onPress={async () => {
+                    setShowDropdown(false);
+                    try {
+                      await signOut(auth);
+                      router.replace("/login" as any);
+                    } catch (e) {
+                      console.error("Logout error", e);
+                    }
+                  }}
+                >
+                  <Ionicons name="log-out-outline" size={14} color="#E74C3C" style={{ marginRight: 6 }} />
+                  <Text style={[styles.dropdownText, { color: "#E74C3C" }]}>Logout</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         </View>
 
@@ -239,5 +276,38 @@ const styles = StyleSheet.create({
   navItem: { alignItems: "center" },
   navItemActive: { alignItems: "center" },
   navText: { fontSize: 10, color: "#999" },
-  navTextActive: { fontSize: 10, color: "#C8A97E", fontWeight: "600" }
+  navTextActive: { fontSize: 10, color: "#C8A97E", fontWeight: "600" },
+  dropdown: {
+    position: "absolute",
+    right: 0,
+    top: 40,
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 6,
+    width: 140,
+    shadowColor: "#000",
+    shadowOpacity: 0.1,
+    shadowRadius: 10,
+    elevation: 5,
+    zIndex: 10000,
+    borderWidth: 1,
+    borderColor: "#eee"
+  },
+  dropdownItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 10,
+    borderRadius: 8
+  },
+  dropdownText: {
+    fontSize: 12,
+    color: "#333",
+    fontWeight: "500"
+  },
+  dropdownSeparator: {
+    height: 1,
+    backgroundColor: "#eee",
+    marginVertical: 2
+  }
 });

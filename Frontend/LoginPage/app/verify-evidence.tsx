@@ -19,29 +19,35 @@ export default function VerifyEvidence() {
     const router = useRouter();
     const { orderId } = useLocalSearchParams();
     const [status, setStatus] = useState<"verifying" | "success" | "failed">("verifying");
+    const [aiReport, setAiReport] = useState<string>("");
+    const [visualMarkers, setVisualMarkers] = useState<string[]>([]);
+    const [isIncorrectPart, setIsIncorrectPart] = useState<boolean>(false);
 
     useEffect(() => {
         if (!orderId) return;
 
         const uploadAndVerify = async () => {
-            const startTime = Date.now();
             try {
                 // Get the images from tempStorage
                 const localImages = getTempData("evidenceImages") || {};
                 
-                // Extract base64 strings
-                const payloadImages: { [key: string]: string[] } = {};
+                // Extract base64 strings and file names
+                const payloadImages: { [key: string]: { base64: string; fileName: string }[] } = {};
                 for (const key in localImages) {
-                    payloadImages[key] = localImages[key].map((img: any) => img.base64).filter(Boolean);
+                    payloadImages[key] = localImages[key].map((img: any) => ({
+                        base64: img.base64 || "",
+                        fileName: img.fileName || img.uri.split('/').pop() || ""
+                    })).filter((img: any) => img.base64);
                 }
 
                 console.log(`📤 Sending ${Object.keys(payloadImages).length} inspection services to backend...`);
 
-                // 1. Send upload request to backend to save in database
+                // Send upload and validation request to backend
                 const response = await fetch(`${BASE_URL}/api/upload-inspection`, {
                     method: "POST",
                     headers: {
-                        "Content-Type": "application/json"
+                        "Content-Type": "application/json",
+                        "bypass-tunnel-reminder": "true"
                     },
                     body: JSON.stringify({
                         orderId,
@@ -53,70 +59,72 @@ export default function VerifyEvidence() {
                     throw new Error("Gagal mengunggah foto ke server");
                 }
 
-                console.log("✅ Inspection photos uploaded successfully");
+                const result = await response.json();
+                console.log("✅ Backend AI Verification completed, success:", result.success);
 
-                // 2. Ensure we simulate for at least 10 seconds
-                const elapsedTime = Date.now() - startTime;
-                const remainingTime = Math.max(0, 10000 - elapsedTime);
-                
-                setTimeout(async () => {
-                    try {
-                        // Update order status in Firestore to notify customer
-                        await updateDoc(doc(db, "orders", orderId as string), {
-                            status: "inspection_verified",
-                            inspectionVerified: true
-                        });
-                        
-                        setStatus("success");
-                        clearTempData("evidenceImages");
-
-                        // Route to waiting-payment-tech after 5s
-                        setTimeout(() => {
-                            router.replace({
-                                pathname: "/waiting-payment-tech" as any,
-                                params: { orderId }
-                            });
-                        }, 5000);
-                    } catch (err) {
-                        console.log("Error updating Firestore status:", err);
-                        setStatus("success");
-                        setTimeout(() => {
-                            router.replace({
-                                pathname: "/waiting-payment-tech" as any,
-                                params: { orderId }
-                            });
-                        }, 5000);
-                    }
-                }, remainingTime);
-
-            } catch (err) {
-                console.log("Upload error:", err);
-                // Even if network fails, proceed as success simulation for demo/robustness
-                const elapsedTime = Date.now() - startTime;
-                const remainingTime = Math.max(0, 10000 - elapsedTime);
-                setTimeout(async () => {
-                    try {
-                        await updateDoc(doc(db, "orders", orderId as string), {
-                            status: "inspection_verified",
-                            inspectionVerified: true
-                        });
-                    } catch (firestoreErr) {
-                        console.log("Failed updating status in fallback:", firestoreErr);
-                    }
+                if (result.success) {
                     setStatus("success");
                     clearTempData("evidenceImages");
+
+                    // Route to waiting-payment-tech after 3s
                     setTimeout(() => {
                         router.replace({
                             pathname: "/waiting-payment-tech" as any,
                             params: { orderId }
                         });
-                    }, 5000);
-                }, remainingTime);
+                    }, 3000);
+                } else {
+                    // Set audit warning information
+                    setAiReport(result.analysis?.analysis_summary || "");
+                    setVisualMarkers(result.analysis?.visual_markers || []);
+                    setIsIncorrectPart(result.analysis?.is_incorrect_part || false);
+                    setStatus("failed");
+                }
+
+            } catch (err) {
+                console.log("Upload error:", err);
+                
+                // Show failed screen and alert user that the backend is unreachable
+                setAiReport("Tidak dapat terhubung ke server backend Anda. Pastikan laptop/PC Anda terhubung ke Wi-Fi yang sama, Windows Firewall mengizinkan port 3000, atau gunakan localtunnel.");
+                setVisualMarkers([`Gagal koneksi ke ${BASE_URL}`]);
+                setIsIncorrectPart(false);
+                setStatus("failed");
+                
+                Alert.alert(
+                    "Koneksi Gagal",
+                    "Aplikasi tidak dapat menghubungi backend di " + BASE_URL + ". Pastikan server backend Anda sudah jalan dan bisa diakses oleh HP Anda."
+                );
             }
         };
 
         uploadAndVerify();
     }, [orderId]);
+
+    const handleResetServices = async () => {
+        if (!orderId) return;
+        try {
+            // Update Firestore order status back to "accepted" (clearing services)
+            await updateDoc(doc(db, "orders", orderId as string), {
+                status: "accepted",
+                selectedServices: [],
+                totalBill: 50000,
+                inspectionVerified: false
+            });
+            clearTempData("evidenceImages");
+            
+            router.replace({
+                pathname: "/start-inspection" as any,
+                params: { orderId }
+            });
+        } catch (err) {
+            console.log("Error resetting order:", err);
+            Alert.alert("Gagal", "Tidak dapat menyetel ulang status pesanan.");
+        }
+    };
+
+    const handleRetakePhotos = () => {
+        router.back();
+    };
 
     return (
         <SafeAreaView style={styles.container}>
@@ -133,14 +141,14 @@ export default function VerifyEvidence() {
 
                     <Text style={styles.title}>Memverifikasi Bukti Foto</Text>
                     <Text style={styles.description}>
-                        Sistem Rapid Repairs sedang mengecek kejelasan dan keabsahan foto bukti yang Anda unggah. Proses ini memakan waktu beberapa detik...
+                        Sistem AI sedang mengecek kejelasan dan keabsahan foto bukti yang Anda unggah. Proses ini memakan waktu beberapa detik...
                     </Text>
 
                     <TouchableOpacity style={styles.cancelBtn} onPress={() => router.back()}>
                         <Text style={styles.cancelBtnText}>Batalkan Unggahan</Text>
                     </TouchableOpacity>
                 </View>
-            ) : (
+            ) : status === "success" ? (
                 <View style={styles.content}>
                     <View style={styles.successIconContainer}>
                         <View style={styles.successIconBg}>
@@ -152,6 +160,56 @@ export default function VerifyEvidence() {
                     <Text style={styles.description}>
                         Sistem AI telah memverifikasi foto bukti Anda. Foto terlihat jelas, sah, dan sesuai standar keamanan Rapid Repairs.
                     </Text>
+                </View>
+            ) : (
+                <View style={styles.content}>
+                    <View style={styles.failIconContainer}>
+                        <View style={styles.failIconBg}>
+                            <Ionicons name="shield-half-sharp" size={56} color="#E74C3C" />
+                        </View>
+                    </View>
+
+                    <Text style={styles.failTitle}>Verifikasi AI Gagal</Text>
+                    
+                    <View style={styles.warningCard}>
+                        <View style={styles.warningHeader}>
+                            <Ionicons name="alert-circle" size={20} color="#E74C3C" />
+                            <Text style={styles.warningHeaderText}>
+                                {isIncorrectPart ? "Peralatan Tidak Sesuai" : "Ketidaksesuaian Bukti Fisik"}
+                            </Text>
+                        </View>
+                        <Text style={styles.warningDesc}>
+                            {aiReport || "Foto bukti pengecekan tidak menunjukkan indikasi kerusakan atau grime sesuai dengan klaim Anda."}
+                        </Text>
+                    </View>
+
+                    {visualMarkers && visualMarkers.length > 0 && (
+                        <View style={styles.markersCard}>
+                            <Text style={styles.markersTitle}>Audit Visual Terdeteksi:</Text>
+                            <View style={styles.markersList}>
+                                {visualMarkers.map((marker, index) => (
+                                    <View key={index} style={styles.markerBadge}>
+                                        <Ionicons name="eye-outline" size={14} color="#8B5E3C" style={{ marginRight: 5 }} />
+                                        <Text style={styles.markerText}>{marker}</Text>
+                                    </View>
+                                ))}
+                            </View>
+                        </View>
+                    )}
+
+                    <Text style={styles.warningActionDesc}>
+                        Deteksi menunjukkan tindakan ketidakjujuran klaim/penipuan layanan. Silakan minta pelanggan melakukan penyusunan ulang pilihan layanan perbaikan, atau perbaiki unggahan Anda.
+                    </Text>
+
+                    <View style={styles.actionRow}>
+                        <TouchableOpacity style={styles.resetBtn} onPress={handleResetServices}>
+                            <Text style={styles.resetBtnText}>Ubah Layanan</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity style={styles.retakeBtn} onPress={handleRetakePhotos}>
+                            <Text style={styles.retakeBtnText}>Ambil Ulang</Text>
+                        </TouchableOpacity>
+                    </View>
                 </View>
             )}
         </SafeAreaView>
@@ -167,7 +225,7 @@ const styles = StyleSheet.create({
         flex: 1,
         alignItems: "center",
         justifyContent: "center",
-        paddingHorizontal: 40,
+        paddingHorizontal: 30,
     },
     iconContainer: {
         marginBottom: 40,
@@ -205,10 +263,28 @@ const styles = StyleSheet.create({
         justifyContent: "center",
         alignItems: "center",
     },
+    failIconContainer: {
+        marginBottom: 30,
+    },
+    failIconBg: {
+        width: 120,
+        height: 120,
+        borderRadius: 60,
+        backgroundColor: "#FDEAE8",
+        justifyContent: "center",
+        alignItems: "center",
+    },
     title: {
         fontSize: 24,
         fontWeight: "800",
         color: "#333",
+        textAlign: "center",
+        marginBottom: 20,
+    },
+    failTitle: {
+        fontSize: 24,
+        fontWeight: "800",
+        color: "#E74C3C",
         textAlign: "center",
         marginBottom: 20,
     },
@@ -230,5 +306,103 @@ const styles = StyleSheet.create({
         color: "#333",
         fontWeight: "600",
         fontSize: 15,
+    },
+    warningCard: {
+        backgroundColor: "#FFF8F7",
+        borderWidth: 1,
+        borderColor: "#FADBD8",
+        borderRadius: 16,
+        padding: 16,
+        width: "100%",
+        marginBottom: 20,
+    },
+    warningHeader: {
+        flexDirection: "row",
+        alignItems: "center",
+        marginBottom: 8,
+    },
+    warningHeaderText: {
+        fontSize: 15,
+        fontWeight: "700",
+        color: "#C0392B",
+        marginLeft: 8,
+    },
+    warningDesc: {
+        fontSize: 13,
+        color: "#7B241C",
+        lineHeight: 20,
+    },
+    markersCard: {
+        backgroundColor: "#fff",
+        borderWidth: 1,
+        borderColor: "#EFEBE4",
+        borderRadius: 16,
+        padding: 16,
+        width: "100%",
+        marginBottom: 20,
+    },
+    markersTitle: {
+        fontSize: 13,
+        fontWeight: "700",
+        color: "#333",
+        marginBottom: 10,
+    },
+    markersList: {
+        flexDirection: "row",
+        flexWrap: "wrap",
+        gap: 8,
+    },
+    markerBadge: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: "#F2EBE5",
+        paddingHorizontal: 10,
+        paddingVertical: 5,
+        borderRadius: 20,
+    },
+    markerText: {
+        fontSize: 12,
+        fontWeight: "600",
+        color: "#8B5E3C",
+    },
+    warningActionDesc: {
+        fontSize: 12,
+        color: "#999",
+        textAlign: "center",
+        lineHeight: 18,
+        paddingHorizontal: 10,
+        marginBottom: 30,
+    },
+    actionRow: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        width: "100%",
+        gap: 12,
+    },
+    resetBtn: {
+        flex: 1,
+        backgroundColor: "#8B5E3C",
+        paddingVertical: 15,
+        borderRadius: 25,
+        alignItems: "center",
+    },
+    resetBtnText: {
+        color: "#fff",
+        fontWeight: "700",
+        fontSize: 14,
+    },
+    retakeBtn: {
+        flex: 1,
+        backgroundColor: "#fff",
+        borderWidth: 1,
+        borderColor: "#D2C4B7",
+        paddingVertical: 15,
+        borderRadius: 25,
+        alignItems: "center",
+    },
+    retakeBtnText: {
+        color: "#333",
+        fontWeight: "700",
+        fontSize: 14,
     },
 });

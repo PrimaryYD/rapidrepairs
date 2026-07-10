@@ -28,6 +28,11 @@ export default function Register() {
                 return;
             }
 
+            if (!email.includes("@")) {
+                alert("Format email tidak valid (harus mengandung '@')");
+                return;
+            }
+
             // 👉 NO BACKEND ANYMORE
 
             // 🔥 pass data to next screen
