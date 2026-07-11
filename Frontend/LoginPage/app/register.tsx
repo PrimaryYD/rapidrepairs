@@ -6,31 +6,63 @@ import {
     StyleSheet,
     Image,
     ScrollView,
+    Animated,
 } from "react-native";
-import { useRouter, useLocalSearchParams, Redirect } from "expo-router";
-import { useState } from "react";
+import { useRouter, useLocalSearchParams } from "expo-router";
+import { useState, useRef, useEffect } from "react";
 import { Ionicons } from "@expo/vector-icons";
+import { Theme } from "../constants/theme";
+import AnimatedButton from "../components/ui/AnimatedButton";
+import { useCustomAlert } from "../components/ui/GlobalAlertProvider";
 
 export default function Register() {
     const router = useRouter();
     const { role } = useLocalSearchParams();
+    const { showAlert } = useCustomAlert();
 
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [location, setLocation] = useState("");
     const [address, setAddress] = useState("");
+    
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+    const translateY = useRef(new Animated.Value(20)).current;
 
+    useEffect(() => {
+        Animated.parallel([
+            Animated.timing(fadeAnim, {
+                toValue: 1,
+                duration: 600,
+                useNativeDriver: true,
+            }),
+            Animated.spring(translateY, {
+                toValue: 0,
+                friction: 8,
+                useNativeDriver: true,
+            })
+        ]).start();
+    }, []);
 
     const handleNext = async () => {
         try {
             if (!name || !email) {
-                alert("Isi semua data dulu");
+                showAlert({
+                    title: "Data Tidak Lengkap",
+                    message: "Harap isi Nama Lengkap dan Email terlebih dahulu.",
+                    type: "warning"
+                });
                 return;
             }
 
-            // 👉 NO BACKEND ANYMORE
+            if (!email.includes("@")) {
+                showAlert({
+                    title: "Format Email Salah",
+                    message: "Format email tidak valid (harus mengandung '@').",
+                    type: "warning"
+                });
+                return;
+            }
 
-            // 🔥 pass data to next screen
             router.push({
                 pathname: "/registerPassword",
                 params: {
@@ -43,175 +75,203 @@ export default function Register() {
 
         } catch (err) {
             console.error("Register error:", err);
-            alert("Terjadi error");
+            showAlert({
+                title: "Terjadi Kesalahan",
+                message: "Tidak dapat melanjutkan proses pendaftaran.",
+                type: "error"
+            });
         }
     };
 
     return (
-        <ScrollView contentContainerStyle={styles.container}>
-            <Image
-                source={require("../assets/Logo/2.png")}
-                style={styles.logo}
-                resizeMode="contain"
-            />
+        <View style={styles.container}>
+            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                <Image
+                    source={require("../assets/Logo/2.png")}
+                    style={styles.logo}
+                    resizeMode="contain"
+                />
 
-            <View style={styles.card}>
-                <TouchableOpacity
-                    style={styles.backButton}
-                    onPress={() => router.back()}
-                >
-                    <Ionicons name="chevron-back" size={20} color="#333" />
-                    <Text style={styles.backText}>Kembali</Text>
-                </TouchableOpacity>
+                <Animated.View style={[styles.card, { opacity: fadeAnim, transform: [{ translateY }] }]}>
+                    <TouchableOpacity
+                        style={styles.backButton}
+                        onPress={() => router.back()}
+                    >
+                        <Ionicons name="chevron-back" size={20} color={Theme.colors.textMuted} />
+                        <Text style={styles.backText}>Kembali</Text>
+                    </TouchableOpacity>
 
-                <Text style={styles.title}>Buat Akun Baru</Text>
-                <Text style={styles.subtitle}>
-                    Buat akun baru untuk profile mu!
-                </Text>
-
-                <View style={styles.field}>
-                    <Text style={styles.label}>Nama Lengkap</Text>
-                    <TextInput
-                        style={styles.input}
-                        placeholder="Masukan nama anda"
-                        placeholderTextColor="#CCC"
-                        value={name}
-                        onChangeText={setName}
-                    />
-                </View>
-
-                <View style={styles.field}>
-                    <Text style={styles.label}>Email</Text>
-                    <TextInput
-                        style={styles.input}
-                        placeholder="Cth: JohnDoe@gmail.com"
-                        placeholderTextColor="#CCC"
-                        value={email}
-                        onChangeText={setEmail}
-                    />
-                </View>
-
-                <View style={styles.field}>
-                    <Text style={styles.label}>Lokasi</Text>
-                    <TextInput
-                        style={styles.input}
-                        placeholder="Masukan Kota/Kecamatan"
-                        placeholderTextColor="#CCC"
-                        value={location}
-                        onChangeText={setLocation}
-                    />
-                </View>
-
-                <View style={styles.field}>
-                    <Text style={styles.label}>Alamat Lengkap</Text>
-                    <TextInput
-                        style={styles.input}
-                        placeholder="Masukan alamat lengkap"
-                        placeholderTextColor="#CCC"
-                        value={address}
-                        onChangeText={setAddress}
-                    />
-                </View>
-
-                <TouchableOpacity style={styles.button} onPress={handleNext}>
-                    <Text style={styles.buttonText}>Lanjut</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                    style={styles.footer}
-                    onPress={() => router.push("/login")}
-                >
-                    <Text style={styles.footerText}>
-                        Sudah punya Akun?{" "}
-                        <Text style={styles.footerLink}>Login</Text>
+                    <Text style={styles.title}>Buat Akun Baru</Text>
+                    <Text style={styles.subtitle}>
+                        Buat akun baru untuk profile mu!
                     </Text>
-                </TouchableOpacity>
-            </View>
-        </ScrollView>
+
+                    <View style={styles.field}>
+                        <Text style={styles.label}>Nama Lengkap</Text>
+                        <View style={styles.inputContainer}>
+                            <Ionicons name="person-outline" size={20} color={Theme.colors.textMuted} style={styles.inputIcon} />
+                            <TextInput
+                                style={styles.input}
+                                placeholder="Masukan nama anda"
+                                placeholderTextColor={Theme.colors.textMuted}
+                                value={name}
+                                onChangeText={setName}
+                            />
+                        </View>
+                    </View>
+
+                    <View style={styles.field}>
+                        <Text style={styles.label}>Email</Text>
+                        <View style={styles.inputContainer}>
+                            <Ionicons name="mail-outline" size={20} color={Theme.colors.textMuted} style={styles.inputIcon} />
+                            <TextInput
+                                style={styles.input}
+                                placeholder="Cth: JohnDoe@gmail.com"
+                                placeholderTextColor={Theme.colors.textMuted}
+                                value={email}
+                                onChangeText={setEmail}
+                                keyboardType="email-address"
+                                autoCapitalize="none"
+                            />
+                        </View>
+                    </View>
+
+                    <View style={styles.field}>
+                        <Text style={styles.label}>Lokasi</Text>
+                        <View style={styles.inputContainer}>
+                            <Ionicons name="location-outline" size={20} color={Theme.colors.textMuted} style={styles.inputIcon} />
+                            <TextInput
+                                style={styles.input}
+                                placeholder="Masukan Kota/Kecamatan"
+                                placeholderTextColor={Theme.colors.textMuted}
+                                value={location}
+                                onChangeText={setLocation}
+                            />
+                        </View>
+                    </View>
+
+                    <View style={styles.field}>
+                        <Text style={styles.label}>Alamat Lengkap</Text>
+                        <View style={styles.inputContainer}>
+                            <Ionicons name="home-outline" size={20} color={Theme.colors.textMuted} style={styles.inputIcon} />
+                            <TextInput
+                                style={styles.input}
+                                placeholder="Masukan alamat lengkap"
+                                placeholderTextColor={Theme.colors.textMuted}
+                                value={address}
+                                onChangeText={setAddress}
+                            />
+                        </View>
+                    </View>
+
+                    <AnimatedButton
+                        title="Lanjut"
+                        onPress={handleNext}
+                        style={styles.button}
+                    />
+
+                    <View style={styles.footer}>
+                        <Text style={styles.footerText}>Sudah punya Akun? </Text>
+                        <TouchableOpacity onPress={() => router.push("/login")}>
+                            <Text style={styles.footerLink}>Login</Text>
+                        </TouchableOpacity>
+                    </View>
+                </Animated.View>
+            </ScrollView>
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
     container: {
+        flex: 1,
+        backgroundColor: Theme.colors.background,
+    },
+    scrollContent: {
         flexGrow: 1,
-        backgroundColor: "white",
         alignItems: "center",
         paddingTop: 60,
         paddingBottom: 40,
+        paddingHorizontal: Theme.spacing.lg,
     },
     logo: {
-        width: 140,
-        height: 140,
-        marginBottom: 40,
+        width: 120,
+        height: 120,
+        marginBottom: Theme.spacing.xl,
     },
     card: {
-        width: "90%",
+        width: "100%",
         maxWidth: 450,
-        backgroundColor: "white",
-        padding: 40,
-        borderRadius: 30,
-        shadowColor: "#000",
-        shadowOpacity: 0.1,
-        shadowRadius: 20,
-        elevation: 8,
+        backgroundColor: Theme.colors.surface,
+        padding: Theme.spacing.xl,
+        borderRadius: Theme.radius.xl,
+        ...Theme.shadows.md,
     },
     backButton: {
         flexDirection: "row",
         alignItems: "center",
-        marginBottom: 20,
+        marginBottom: Theme.spacing.md,
+        alignSelf: "flex-start",
     },
     backText: {
-        color: "#333",
+        color: Theme.colors.textMuted,
         fontSize: 14,
+        fontWeight: "500",
         marginLeft: 4,
     },
     title: {
-        fontSize: 22,
-        fontWeight: "700",
-        marginBottom: 6,
+        ...Theme.typography.h2,
+        color: Theme.colors.primaryDark,
+        marginBottom: Theme.spacing.xs,
     },
     subtitle: {
-        fontSize: 14,
-        color: "#BBB",
-        marginBottom: 35,
+        ...Theme.typography.body,
+        color: Theme.colors.textMuted,
+        marginBottom: Theme.spacing.xl,
     },
     field: {
-        marginBottom: 25,
+        marginBottom: Theme.spacing.lg,
         width: "100%",
     },
     label: {
-        fontSize: 14,
-        fontWeight: "700",
-        marginBottom: 6,
+        ...Theme.typography.subtitle,
+        color: Theme.colors.text,
+        marginBottom: Theme.spacing.sm,
+    },
+    inputContainer: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: Theme.colors.inputBg,
+        borderRadius: Theme.radius.md,
+        borderWidth: 1,
+        borderColor: Theme.colors.border,
+        paddingHorizontal: Theme.spacing.md,
+    },
+    inputIcon: {
+        marginRight: Theme.spacing.sm,
     },
     input: {
-        borderBottomWidth: 1,
-        borderBottomColor: "#EEE",
-        paddingVertical: 8,
-        fontSize: 14,
+        flex: 1,
+        height: 50,
+        ...Theme.typography.body,
+        color: Theme.colors.text,
     },
     button: {
-        marginTop: 20,
-        backgroundColor: "#B3875E",
-        paddingVertical: 18,
-        borderRadius: 35,
-        alignItems: "center",
-    },
-    buttonText: {
-        color: "white",
-        fontSize: 16,
-        fontWeight: "700",
+        marginTop: Theme.spacing.md,
     },
     footer: {
-        marginTop: 20,
+        marginTop: Theme.spacing.xl,
+        flexDirection: "row",
+        justifyContent: "center",
         alignItems: "center",
     },
     footerText: {
-        fontSize: 12,
-        color: "#666",
+        ...Theme.typography.body,
+        color: Theme.colors.textMuted,
     },
     footerLink: {
+        ...Theme.typography.body,
+        color: Theme.colors.primary,
         fontWeight: "700",
-        textDecorationLine: "underline",
     },
 });

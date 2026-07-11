@@ -5,29 +5,46 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
-  TextInput
+  TextInput,
+  Animated,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 // 🔥 FIREBASE
 import { auth, db } from "./_firebaseConfig";
 import { doc, onSnapshot } from "firebase/firestore";
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, signOut } from "firebase/auth";
+
+import { Theme } from "../constants/theme";
+import { useCustomAlert } from "../components/ui/GlobalAlertProvider";
+import AnimatedButton from "../components/ui/AnimatedButton";
 
 export default function Home() {
   const router = useRouter();
+  const { showAlert } = useCustomAlert();
 
   // 🔥 STATUS: null | pending | approved
   const [statusTeknisi, setStatusTeknisi] = useState<string | null>(null);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [profilePic, setProfilePic] = useState<string | null>(null);
+
+  const fadeAnim = useRef(new Animated.Value(0)).current;
 
   // 🔥 REALTIME LISTENER (ANTI GAGAL)
   useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 500,
+      useNativeDriver: true,
+    }).start();
+
     const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
       if (!user) {
         console.log("❌ User belum login");
         setStatusTeknisi(null);
+        setProfilePic(null);
         return;
       }
 
@@ -38,16 +55,11 @@ export default function Home() {
       const unsubscribeSnap = onSnapshot(
         techRef,
         (docSnap) => {
-          console.log("📦 Doc exists?", docSnap.exists());
-
           if (docSnap.exists()) {
             const data = docSnap.data();
             const status = data.status || "pending";
-
-            console.log("✅ STATUS FIRESTORE:", status);
             setStatusTeknisi(status);
           } else {
-            console.log("❌ Belum daftar teknisi");
             setStatusTeknisi(null);
           }
         },
@@ -56,11 +68,50 @@ export default function Home() {
         }
       );
 
-      return () => unsubscribeSnap();
+      const userRef = doc(db, "users", user.uid);
+      const unsubscribeUser = onSnapshot(
+        userRef,
+        (docSnap) => {
+          if (docSnap.exists()) {
+            setProfilePic(docSnap.data().profilePictureUrl || null);
+          }
+        },
+        (error) => {
+          console.log("🔥 ERROR USER SNAPSHOT:", error);
+        }
+      );
+
+      return () => {
+        unsubscribeSnap();
+        unsubscribeUser();
+      };
     });
 
     return () => unsubscribeAuth();
   }, []);
+
+  const handleLogout = () => {
+    showAlert({
+      title: "Konfirmasi Logout",
+      message: "Apakah Anda yakin ingin keluar dari akun ini?",
+      type: "warning",
+      buttons: [
+        { text: "Batal", style: "cancel" },
+        {
+          text: "Keluar",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await signOut(auth);
+              router.replace("/login" as any);
+            } catch (e: any) {
+              showAlert({ title: "Error", message: e.message, type: "error" });
+            }
+          }
+        }
+      ]
+    });
+  };
 
   const categories = [
     { name: "AC", image: require("../assets/images/ac.png") },
@@ -71,7 +122,7 @@ export default function Home() {
 
   return (
     <View style={styles.wrapper}>
-      <View style={styles.screenCard}>
+      <Animated.View style={[styles.screenCard, { opacity: fadeAnim }]}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.replace("/loading" as any)}>
             <Image
@@ -82,33 +133,73 @@ export default function Home() {
           </TouchableOpacity>
 
           <View style={styles.searchBox}>
-            <Ionicons name="search" size={16} color="#999" />
-            <TextInput placeholder="Kulkas" style={styles.searchInput} />
+            <Ionicons name="search" size={16} color={Theme.colors.textMuted} />
+            <TextInput placeholder="Cari layanan..." style={styles.searchInput} placeholderTextColor={Theme.colors.textMuted} />
           </View>
 
-          <View style={styles.profileIcon}>
-            <Ionicons name="person-outline" size={18} color="#444" />
+          <View style={{ position: "relative", zIndex: 9999 }}>
+            <TouchableOpacity 
+              style={styles.profileIcon}
+              onPress={() => setShowDropdown(!showDropdown)}
+            >
+              {profilePic ? (
+                <Image source={{ uri: profilePic }} style={styles.profileImage} />
+              ) : (
+                <Ionicons name="person-outline" size={18} color={Theme.colors.primaryDark} />
+              )}
+            </TouchableOpacity>
+
+            {showDropdown && (
+              <View style={styles.dropdown}>
+                <TouchableOpacity 
+                  style={styles.dropdownItem}
+                  onPress={() => {
+                    setShowDropdown(false);
+                    router.push({
+                      pathname: "/profile-settings" as any,
+                      params: { from: "Homepage" }
+                    });
+                  }}
+                >
+                  <Ionicons name="settings-outline" size={16} color={Theme.colors.text} style={{ marginRight: 8 }} />
+                  <Text style={styles.dropdownText}>Pengaturan Akun</Text>
+                </TouchableOpacity>
+                <View style={styles.dropdownSeparator} />
+                <TouchableOpacity 
+                  style={styles.dropdownItem}
+                  onPress={() => {
+                    setShowDropdown(false);
+                    handleLogout();
+                  }}
+                >
+                  <Ionicons name="log-out-outline" size={16} color={Theme.colors.danger} style={{ marginRight: 8 }} />
+                  <Text style={[styles.dropdownText, { color: Theme.colors.danger }]}>Keluar</Text>
+                </TouchableOpacity>
+              </View>
+            )}
           </View>
         </View>
 
-        <ScrollView showsVerticalScrollIndicator={false}>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
           {/* PROMO */}
           <View style={styles.promoCard}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.promoBadge}>PROMO</Text>
+            <View style={styles.promoContent}>
+              <View style={styles.promoBadgeContainer}>
+                <Text style={styles.promoBadge}>PROMO</Text>
+              </View>
               <Text style={styles.promoTitle}>
                 Diskon 20% + Konsultasi Gratis!
               </Text>
               <Text style={styles.promoDesc}>
                 Nikmati penawaran terbatas untuk layanan repair Anda.
               </Text>
-              <TouchableOpacity style={styles.promoButton}>
-                <Text style={styles.promoButtonText}>
-                  Ambil Penawaran
-                </Text>
-              </TouchableOpacity>
+              <AnimatedButton
+                title="Ambil Penawaran"
+                onPress={() => {}}
+                style={styles.promoButton}
+                textStyle={{ fontSize: 12, paddingHorizontal: 12, paddingVertical: 4 }}
+              />
             </View>
-
             <Image
               source={require("../assets/images/banner3.png")}
               style={styles.promoImage}
@@ -116,18 +207,18 @@ export default function Home() {
           </View>
 
           {/* KATEGORI */}
-          <Text style={styles.sectionTitle}>Kategori</Text>
+          <Text style={styles.sectionTitle}>Kategori Layanan</Text>
           <View style={styles.categoryRow}>
             {categories.map((item, index) => {
               const isAC = item.name === "AC";
               const isAll = item.name === "Semua";
-              const isSegera =
-                item.name === "Kulkas" || item.name === "Elektronik";
+              const isSegera = item.name === "Kulkas" || item.name === "Elektronik";
 
               return (
                 <TouchableOpacity
                   key={index}
                   style={styles.categoryItem}
+                  activeOpacity={0.7}
                   onPress={() => {
                     if (isAC) router.push("/ac-services" as any);
                     if (isAll) router.push("/all-services" as any);
@@ -151,16 +242,22 @@ export default function Home() {
 
           {/* TEKNISI */}
           <View style={styles.techCard}>
+            <View style={styles.techIconContainer}>
+                <Ionicons name="construct" size={24} color={Theme.colors.primary} />
+            </View>
             <Text style={styles.techTitle}>
               Punya Keahlian Reparasi?
             </Text>
-
             <Text style={styles.techDesc}>
-              Daftar jadi mitra teknisi dan tambah penghasilan Anda!
+              Daftar jadi mitra teknisi dan tambah penghasilan Anda! Bergabung bersama ribuan mitra lainnya.
             </Text>
 
-            <TouchableOpacity
-              style={styles.techButton}
+            <AnimatedButton
+              title={
+                statusTeknisi === null ? "Daftar Jadi Teknisi" :
+                statusTeknisi === "pending" ? "Cek Status Pendaftaran" :
+                "Menuju Halaman Teknisi"
+              }
               onPress={() => {
                 if (statusTeknisi === null) {
                   router.push("/register-technician" as any);
@@ -170,37 +267,24 @@ export default function Home() {
                   router.push("/home-tech" as any);
                 }
               }}
-            >
-              <Text style={styles.techButtonText}>
-                {statusTeknisi === null && "Daftar Jadi Teknisi"}
-                {statusTeknisi === "pending" && "Cek Status Pendaftaran"}
-                {statusTeknisi === "approved" && "Menuju Halaman Teknisi"}
-              </Text>
-            </TouchableOpacity>
-
-            {/* DEBUG (boleh hapus nanti) */}
-            <Text style={{ marginTop: 10, fontSize: 12 }}>
-              Status: {statusTeknisi}
-            </Text>
+              style={styles.techButton}
+            />
           </View>
         </ScrollView>
-      </View>
+      </Animated.View>
 
-      {/* BOTTOM NAV */}
-      <View style={styles.bottomBar}>
-        <View style={styles.navItemActive}>
-          <Ionicons name="home" size={20} color="#C8A97E" />
-          <Text style={styles.navTextActive}>Beranda</Text>
-        </View>
+      {/* BOTTOM NAV - Glassmorphism style */}
+      <View style={styles.bottomBarWrapper}>
+        <View style={styles.bottomBar}>
+          <TouchableOpacity style={styles.navItemActive}>
+            <Ionicons name="home" size={22} color={Theme.colors.primary} />
+            <Text style={styles.navTextActive}>Beranda</Text>
+          </TouchableOpacity>
 
-        <View style={styles.navItem}>
-          <Ionicons name="time-outline" size={20} color="#999" />
-          <Text style={styles.navText}>Riwayat</Text>
-        </View>
-
-        <View style={styles.navItem}>
-          <Ionicons name="person-outline" size={20} color="#999" />
-          <Text style={styles.navText}>Profil</Text>
+          <TouchableOpacity style={styles.navItem} onPress={() => router.push('/history' as any)}>
+            <Ionicons name="time-outline" size={22} color={Theme.colors.textMuted} />
+            <Text style={styles.navText}>Riwayat</Text>
+          </TouchableOpacity>
         </View>
       </View>
     </View>
@@ -208,36 +292,154 @@ export default function Home() {
 }
 
 const styles = StyleSheet.create({
-  wrapper: { flex: 1, backgroundColor: "#DAD3C8", justifyContent: "center" },
-  screenCard: { flex: 1, backgroundColor: "#F6F2EA", borderRadius: 25, overflow: "hidden" },
-  header: { flexDirection: "row", alignItems: "center", padding: 16 },
-  logo: { width: 80, height: 30 },
-  searchBox: { flexDirection: "row", alignItems: "center", backgroundColor: "#EFEFEF", borderRadius: 20, paddingHorizontal: 10, flex: 1, marginHorizontal: 10 },
-  searchInput: { flex: 1, fontSize: 12, paddingVertical: 6 },
-  profileIcon: { backgroundColor: "#fff", padding: 8, borderRadius: 20, elevation: 2 },
-  promoCard: { flexDirection: "row", backgroundColor: "#F3E4CF", margin: 16, borderRadius: 18, padding: 16, alignItems: "center" },
-  promoImage: { width: 90, height: 90, resizeMode: "contain" },
-  promoBadge: { fontSize: 10, backgroundColor: "#3B2E2E", color: "#fff", paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8, alignSelf: "flex-start", marginBottom: 6 },
-  promoTitle: { fontWeight: "bold", fontSize: 14, color: "#2E2E2E" },
-  promoDesc: { fontSize: 11, color: "#666", marginVertical: 6 },
-  promoButton: { backgroundColor: "#8B5E3C", paddingVertical: 6, paddingHorizontal: 12, borderRadius: 20, alignSelf: "flex-start" },
-  promoButtonText: { color: "#fff", fontSize: 11 },
-  sectionTitle: { fontWeight: "600", fontSize: 14, marginHorizontal: 16 },
-  categoryRow: { flexDirection: "row", justifyContent: "space-between", paddingHorizontal: 16, marginTop: 10 },
+  wrapper: { flex: 1, backgroundColor: Theme.colors.background },
+  screenCard: { flex: 1, backgroundColor: Theme.colors.surface, overflow: "hidden" },
+  header: { 
+    flexDirection: "row", 
+    alignItems: "center", 
+    paddingHorizontal: Theme.spacing.lg,
+    paddingTop: Theme.spacing.xl + 20, // safe area approximation
+    paddingBottom: Theme.spacing.md,
+    backgroundColor: Theme.colors.surface,
+    ...Theme.shadows.sm,
+    zIndex: 10,
+  },
+  logo: { width: 90, height: 35 },
+  searchBox: { 
+    flexDirection: "row", 
+    alignItems: "center", 
+    backgroundColor: Theme.colors.inputBg, 
+    borderRadius: Theme.radius.full, 
+    paddingHorizontal: Theme.spacing.md, 
+    flex: 1, 
+    marginHorizontal: Theme.spacing.md,
+    height: 40,
+  },
+  searchInput: { flex: 1, fontSize: 13, marginLeft: 8, color: Theme.colors.text },
+  profileIcon: {
+    backgroundColor: Theme.colors.surfaceLight,
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    justifyContent: "center",
+    alignItems: "center",
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: Theme.colors.border,
+  },
+  profileImage: { width: 38, height: 38, borderRadius: 19 },
+  
+  promoCard: { 
+    flexDirection: "row", 
+    backgroundColor: Theme.colors.secondary, 
+    margin: Theme.spacing.lg, 
+    borderRadius: Theme.radius.lg, 
+    padding: Theme.spacing.lg, 
+    alignItems: "center",
+    ...Theme.shadows.sm,
+    overflow: 'hidden'
+  },
+  promoContent: { flex: 1 },
+  promoImage: { width: 100, height: 100, resizeMode: "contain", right: -10 },
+  promoBadgeContainer: {
+    backgroundColor: Theme.colors.primaryDark,
+    alignSelf: "flex-start",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: Theme.radius.sm,
+    marginBottom: 8,
+  },
+  promoBadge: { fontSize: 10, color: Theme.colors.surface, fontWeight: '700' },
+  promoTitle: { ...Theme.typography.h3, color: Theme.colors.primaryDark, marginBottom: 4 },
+  promoDesc: { ...Theme.typography.caption, color: Theme.colors.primaryDark, marginBottom: 12, opacity: 0.9 },
+  promoButton: { height: 36, paddingHorizontal: 0, alignSelf: "flex-start" },
+  
+  sectionTitle: { ...Theme.typography.h3, marginHorizontal: Theme.spacing.lg, marginTop: Theme.spacing.sm, marginBottom: Theme.spacing.md },
+  categoryRow: { flexDirection: "row", justifyContent: "space-between", paddingHorizontal: Theme.spacing.lg },
   categoryItem: { width: "23%", alignItems: "center" },
-  categoryIcon: { width: 60, height: 60, backgroundColor: "#EFEFEF", borderRadius: 14, justifyContent: "center", alignItems: "center" },
-  categoryImage: { width: 24, height: 24 },
-  categoryText: { fontSize: 11, marginTop: 4 },
-  badge: { position: "absolute", top: -6, backgroundColor: "#D9D9D9", paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6 },
-  badgeText: { fontSize: 8 },
-  techCard: { backgroundColor: "#F2E2CC", margin: 16, borderRadius: 16, padding: 16 },
-  techTitle: { fontWeight: "600" },
-  techDesc: { fontSize: 12, color: "#555", marginVertical: 5 },
-  techButton: { backgroundColor: "#8B5E3C", padding: 12, borderRadius: 25, alignItems: "center" },
-  techButtonText: { color: "#fff" },
-  bottomBar: { position: "absolute", bottom: 10, left: 10, right: 10, flexDirection: "row", justifyContent: "space-around", backgroundColor: "#fff", paddingVertical: 12, borderRadius: 20, elevation: 5 },
-  navItem: { alignItems: "center" },
-  navItemActive: { alignItems: "center" },
-  navText: { fontSize: 10, color: "#999" },
-  navTextActive: { fontSize: 10, color: "#C8A97E", fontWeight: "600" }
+  categoryIcon: { 
+    width: 64, 
+    height: 64, 
+    backgroundColor: Theme.colors.inputBg, 
+    borderRadius: Theme.radius.md, 
+    justifyContent: "center", 
+    alignItems: "center",
+    ...Theme.shadows.sm,
+  },
+  categoryImage: { width: 32, height: 32 },
+  categoryText: { ...Theme.typography.caption, marginTop: 8, fontWeight: '600', color: Theme.colors.text },
+  badge: { position: "absolute", top: -8, backgroundColor: Theme.colors.danger, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 8, ...Theme.shadows.sm },
+  badgeText: { fontSize: 9, color: 'white', fontWeight: 'bold' },
+  
+  techCard: { 
+    backgroundColor: Theme.colors.surfaceLight, 
+    margin: Theme.spacing.lg, 
+    borderRadius: Theme.radius.lg, 
+    padding: Theme.spacing.lg,
+    borderWidth: 1,
+    borderColor: Theme.colors.border,
+    alignItems: 'center',
+    ...Theme.shadows.sm
+  },
+  techIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: Theme.colors.secondary + '40', // 40 hex opacity
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: Theme.spacing.sm,
+  },
+  techTitle: { ...Theme.typography.h3, color: Theme.colors.primaryDark, textAlign: 'center' },
+  techDesc: { ...Theme.typography.body, color: Theme.colors.textMuted, marginVertical: Theme.spacing.sm, textAlign: 'center' },
+  techButton: { width: '100%', marginTop: Theme.spacing.sm },
+  
+  bottomBarWrapper: {
+    position: "absolute", 
+    bottom: 20, 
+    left: 20, 
+    right: 20, 
+  },
+  bottomBar: { 
+    flexDirection: "row", 
+    justifyContent: "space-around", 
+    backgroundColor: "rgba(255, 255, 255, 0.95)", // Pseudo glassmorphism
+    paddingVertical: 14, 
+    borderRadius: Theme.radius.xl, 
+    ...Theme.shadows.lg,
+  },
+  navItem: { alignItems: "center", flex: 1 },
+  navItemActive: { alignItems: "center", flex: 1 },
+  navText: { fontSize: 11, color: Theme.colors.textMuted, marginTop: 4, fontWeight: '500' },
+  navTextActive: { fontSize: 11, color: Theme.colors.primary, fontWeight: "700", marginTop: 4 },
+  
+  dropdown: {
+    position: "absolute",
+    right: 0,
+    top: 50,
+    backgroundColor: Theme.colors.surface,
+    borderRadius: Theme.radius.md,
+    padding: Theme.spacing.sm,
+    width: 160,
+    ...Theme.shadows.lg,
+    zIndex: 10000,
+    borderWidth: 1,
+    borderColor: Theme.colors.border
+  },
+  dropdownItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderRadius: Theme.radius.sm
+  },
+  dropdownText: {
+    ...Theme.typography.body,
+    fontWeight: "600"
+  },
+  dropdownSeparator: {
+    height: 1,
+    backgroundColor: Theme.colors.border,
+    marginVertical: 4
+  }
 });

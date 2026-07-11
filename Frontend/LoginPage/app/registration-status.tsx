@@ -96,7 +96,7 @@ const styles = StyleSheet.create({
     headerTitle: {
         fontSize: 18,
         fontWeight: "700",
-        color: "#333",
+        color: Theme.colors.text,
     },
     content: {
         flex: 1,
@@ -129,7 +129,7 @@ const styles = StyleSheet.create({
     title: {
         fontSize: 22,
         fontWeight: "800",
-        color: "#333",
+        color: Theme.colors.text,
         textAlign: "center",
         lineHeight: 30,
         marginBottom: 20,
@@ -162,8 +162,8 @@ const styles = StyleSheet.create({
         paddingVertical: 18,
         borderRadius: 35,
         borderWidth: 1.5,
-        borderColor: "#B3875E",
-        backgroundColor: "#B3875E",
+        borderColor: Theme.colors.primary,
+        backgroundColor: Theme.colors.primary,
         alignItems: "center",
     },
     returnButtonText: {

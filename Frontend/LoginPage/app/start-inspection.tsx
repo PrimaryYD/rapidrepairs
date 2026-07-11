@@ -76,7 +76,7 @@ export default function StartInspection() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: "#FAF6F0",
+        backgroundColor: Theme.colors.background,
     },
     header: {
         paddingVertical: 20,
@@ -87,7 +87,7 @@ const styles = StyleSheet.create({
     headerTitle: {
         fontSize: 18,
         fontWeight: "700",
-        color: "#333",
+        color: Theme.colors.text,
     },
     content: {
         flex: 1,
@@ -102,7 +102,7 @@ const styles = StyleSheet.create({
         width: 100,
         height: 100,
         borderRadius: 50,
-        backgroundColor: "#F2EBE5",
+        backgroundColor: Theme.colors.border,
         justifyContent: "center",
         alignItems: "center",
         shadowColor: "#000",
@@ -114,14 +114,14 @@ const styles = StyleSheet.create({
     title: {
         fontSize: 22,
         fontWeight: "800",
-        color: "#333",
+        color: Theme.colors.text,
         textAlign: "center",
         marginBottom: 20,
         lineHeight: 30,
     },
     description: {
         fontSize: 14,
-        color: "#777",
+        color: Theme.colors.textMuted,
         textAlign: "center",
         lineHeight: 22,
     },
@@ -131,14 +131,14 @@ const styles = StyleSheet.create({
     },
     statusButton: {
         flexDirection: "row",
-        backgroundColor: "#F2EBE5",
+        backgroundColor: Theme.colors.border,
         paddingVertical: 18,
         borderRadius: 30,
         justifyContent: "center",
         alignItems: "center",
     },
     statusText: {
-        color: "#8B5E3C",
+        color: Theme.colors.primary,
         fontWeight: "700",
         fontSize: 14,
     },

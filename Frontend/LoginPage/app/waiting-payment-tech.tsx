@@ -212,18 +212,18 @@ export default function WaitingPaymentTechScreen() {
 const styles = StyleSheet.create({
     safeArea: {
         flex: 1,
-        backgroundColor: "#FAF6F0",
+        backgroundColor: Theme.colors.background,
     },
     loadingContainer: {
         flex: 1,
-        backgroundColor: "#FAF6F0",
+        backgroundColor: Theme.colors.background,
         justifyContent: "center",
         alignItems: "center",
     },
     loadingText: {
         marginTop: 15,
         fontSize: 14,
-        color: "#B3875E",
+        color: Theme.colors.primary,
         fontWeight: "600",
     },
     scrollContent: {
@@ -237,7 +237,7 @@ const styles = StyleSheet.create({
     headerTitle: {
         fontSize: 18,
         fontWeight: "700",
-        color: "#333",
+        color: Theme.colors.text,
     },
     progressContainer: {
         alignItems: "center",
@@ -248,7 +248,7 @@ const styles = StyleSheet.create({
         width: 100,
         height: 100,
         borderRadius: 50,
-        backgroundColor: "#F2EBE5",
+        backgroundColor: Theme.colors.border,
         justifyContent: "center",
         alignItems: "center",
         position: "relative",
@@ -258,7 +258,7 @@ const styles = StyleSheet.create({
         position: "absolute",
         bottom: -5,
         right: -5,
-        backgroundColor: "#fff",
+        backgroundColor: Theme.colors.surface,
         width: 36,
         height: 36,
         borderRadius: 18,
@@ -270,23 +270,23 @@ const styles = StyleSheet.create({
     title: {
         fontSize: 22,
         fontWeight: "900",
-        color: "#333",
+        color: Theme.colors.text,
         textAlign: "center",
         marginBottom: 12,
     },
     desc: {
         fontSize: 13,
-        color: "#777",
+        color: Theme.colors.textMuted,
         textAlign: "center",
         lineHeight: 20,
         paddingHorizontal: 15,
     },
     summaryCard: {
         width: "100%",
-        backgroundColor: "#FFF",
+        backgroundColor: Theme.colors.surface,
         borderRadius: 20,
         borderWidth: 1.5,
-        borderColor: "#F0EFEB",
+        borderColor: Theme.colors.border,
         padding: 20,
         marginBottom: 30,
     },
@@ -305,12 +305,12 @@ const styles = StyleSheet.create({
     },
     rowLabel: {
         fontSize: 13,
-        color: "#666",
+        color: Theme.colors.textMuted,
         fontWeight: "500",
     },
     rowVal: {
         fontSize: 13,
-        color: "#333",
+        color: Theme.colors.text,
         fontWeight: "600",
     },
     divider: {
@@ -320,12 +320,12 @@ const styles = StyleSheet.create({
     },
     totalLabel: {
         fontSize: 14,
-        color: "#333",
+        color: Theme.colors.text,
         fontWeight: "800",
     },
     totalVal: {
         fontSize: 15,
-        color: "#B3875E",
+        color: Theme.colors.primary,
         fontWeight: "900",
     },
     cancelBtn: {
@@ -333,7 +333,7 @@ const styles = StyleSheet.create({
     },
     cancelText: {
         fontSize: 13,
-        color: "#B3875E",
+        color: Theme.colors.primary,
         fontWeight: "700",
         textDecorationLine: "underline",
     },
@@ -368,13 +368,13 @@ const styles = StyleSheet.create({
     successTitle: {
         fontSize: 24,
         fontWeight: "900",
-        color: "#333",
+        color: Theme.colors.text,
         textAlign: "center",
         marginBottom: 15,
     },
     successDesc: {
         fontSize: 14,
-        color: "#777",
+        color: Theme.colors.textMuted,
         textAlign: "center",
         lineHeight: 22,
     },

@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet } from "react-native";
+import { Theme } from "../constants/theme";
 
 export default function PaymentFailed() {
     return (
@@ -23,6 +24,6 @@ const styles = StyleSheet.create({
     },
     desc: {
         marginTop: 10,
-        color: "#666",
+        color: Theme.colors.textMuted,
     },
 });

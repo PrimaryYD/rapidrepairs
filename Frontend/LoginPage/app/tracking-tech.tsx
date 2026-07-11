@@ -14,6 +14,9 @@ import * as Location from "expo-location";
 import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 
 import AcMapView from "../components/AcMapView";
+import { Theme } from "../constants/theme";
+import { useCustomAlert } from "../components/ui/GlobalAlertProvider";
+import AnimatedButton from "../components/ui/AnimatedButton";
 
 export default function TrackingTech() {
 
@@ -23,6 +26,7 @@ export default function TrackingTech() {
     const [order, setOrder] = useState<any>(null);
     const [techLocation, setTechLocation] = useState<any>(null);
     const mapRef = useRef<any>(null);
+    const { showAlert } = useCustomAlert();
 
     // 📍 TRACK TECHNICIAN LOCATION
     useEffect(() => {
@@ -32,7 +36,7 @@ export default function TrackingTech() {
             try {
                 let { status } = await Location.requestForegroundPermissionsAsync();
                 if (status !== "granted") {
-                    alert("Izin lokasi diperlukan.");
+                    showAlert({ title: "Izin Diperlukan", message: "Izin lokasi diperlukan.", type: "warning" });
                     return;
                 }
 
@@ -105,7 +109,7 @@ export default function TrackingTech() {
         await updateDoc(doc(db, "orders", orderId as string), {
             status: "arrived"
         });
-        alert("Anda telah sampai di tujuan!");
+        showAlert({ title: "Sampai Tujuan", message: "Anda telah sampai di tujuan!", type: "success" });
         router.replace({
             pathname: "/start-inspection" as any,
             params: { orderId }
@@ -118,6 +122,32 @@ export default function TrackingTech() {
                 <Text>Loading order...</Text>
             </View>
         );
+    }
+
+    const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+        const R = 6371; // Radius of the earth in km
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a =
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c; // Distance in km
+    };
+
+    let displayDistance = "1.5 km";
+    let displayDuration = "4 menit";
+
+    if (techLocation && order?.location) {
+        const d = getDistance(
+            techLocation.latitude,
+            techLocation.longitude,
+            order.location.lat,
+            order.location.lng
+        );
+        displayDistance = `${d.toFixed(1)} km`;
+        displayDuration = `${Math.max(1, Math.round(d * 2.5))} menit`;
     }
 
     return (
@@ -166,10 +196,25 @@ export default function TrackingTech() {
                     </TouchableOpacity>
                 </View>
 
-                <TouchableOpacity style={styles.arrivedBtn} onPress={finishOrder}>
-                    <Ionicons name="navigate" size={18} color="#fff" style={{ marginRight: 8 }} />
-                    <Text style={styles.arrivedText}>Sampai Tujuan</Text>
-                </TouchableOpacity>
+                {/* ESTIMATION ROW */}
+                <View style={styles.estimationRow}>
+                    <View style={styles.estimationCol}>
+                        <Ionicons name="trail-sign-outline" size={18} color="#8B5E3C" />
+                        <Text style={styles.estimationText}>{displayDistance}</Text>
+                    </View>
+                    <View style={styles.estimationSeparator} />
+                    <View style={styles.estimationCol}>
+                        <Ionicons name="time-outline" size={18} color="#8B5E3C" />
+                        <Text style={styles.estimationText}>{displayDuration}</Text>
+                    </View>
+                </View>
+
+                <AnimatedButton
+                    title="Sampai Tujuan"
+                    icon={<Ionicons name="navigate" size={18} color="#fff" style={{ marginRight: 8 }} />}
+                    onPress={finishOrder}
+                    style={{ width: '100%' }}
+                />
 
             </View>
 
@@ -178,7 +223,7 @@ export default function TrackingTech() {
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1, backgroundColor: "#fff" },
+    container: { flex: 1, backgroundColor: Theme.colors.surface },
 
     loading: {
         flex: 1,
@@ -194,7 +239,7 @@ const styles = StyleSheet.create({
         top: 50,
         left: 20,
         right: 20,
-        backgroundColor: "#fff",
+        backgroundColor: Theme.colors.surface,
         flexDirection: "row",
         alignItems: "center",
         padding: 15,
@@ -207,7 +252,7 @@ const styles = StyleSheet.create({
     locationIcon: {
         width: 40,
         height: 40,
-        backgroundColor: "#F9F6F2",
+        backgroundColor: Theme.colors.primaryLight + "20",
         borderRadius: 20,
         justifyContent: "center",
         alignItems: "center",
@@ -215,13 +260,13 @@ const styles = StyleSheet.create({
     },
     topLabel: {
         fontSize: 10,
-        color: "#999",
+        color: Theme.colors.textMuted,
         fontWeight: "bold"
     },
     topValue: {
         fontSize: 13,
         fontWeight: "bold",
-        color: "#333"
+        color: Theme.colors.text
     },
 
     /* BOTTOM CARD */
@@ -230,7 +275,7 @@ const styles = StyleSheet.create({
         bottom: 20,
         left: 20,
         right: 20,
-        backgroundColor: "#fff",
+        backgroundColor: Theme.colors.surface,
         padding: 20,
         borderRadius: 30,
         elevation: 15,
@@ -247,26 +292,26 @@ const styles = StyleSheet.create({
         width: 45,
         height: 45,
         borderRadius: 25,
-        backgroundColor: "#eee",
+        backgroundColor: Theme.colors.inputBg,
         justifyContent: "center",
         alignItems: "center",
         marginRight: 12
     },
     customerLabel: {
         fontSize: 11,
-        color: "#999"
+        color: Theme.colors.textMuted
     },
     customerName: {
         fontSize: 16,
         fontWeight: "bold",
-        color: "#333"
+        color: Theme.colors.text
     },
     iconBtn: {
         width: 40,
         height: 40,
         borderRadius: 20,
         borderWidth: 1,
-        borderColor: "#eee",
+        borderColor: Theme.colors.border,
         justifyContent: "center",
         alignItems: "center",
         marginLeft: 10
@@ -283,5 +328,31 @@ const styles = StyleSheet.create({
         color: "#fff",
         fontWeight: "bold",
         fontSize: 15
-    }
+    },
+    estimationRow: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        alignItems: "center",
+        backgroundColor: Theme.colors.primaryLight + "20",
+        padding: 12,
+        borderRadius: 15,
+        marginBottom: 15,
+    },
+    estimationCol: {
+        flex: 1,
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 6,
+    },
+    estimationText: {
+        fontSize: 13,
+        fontWeight: "700",
+        color: Theme.colors.text,
+    },
+    estimationSeparator: {
+        width: 1,
+        height: 20,
+        backgroundColor: Theme.colors.border,
+    },
 });

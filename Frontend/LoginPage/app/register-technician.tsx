@@ -11,6 +11,9 @@ import { doc, getDoc } from "firebase/firestore";
 import { auth, db, storage } from "./_firebaseConfig"; // adjust path if needed
 import { ref, uploadBytes, uploadString, getDownloadURL } from "firebase/storage";
 import { ActivityIndicator } from "react-native";
+import { Theme } from "../constants/theme";
+import { useCustomAlert } from "../components/ui/GlobalAlertProvider";
+import AnimatedButton from "../components/ui/AnimatedButton";
 import { useEffect } from "react";
 import { BASE_URL } from "../api";
 import { setTempData, getTempData, clearTempData } from "../utils/tempStorage";
@@ -27,6 +30,7 @@ export default function RegisterTechnician() {
 
     const params = useLocalSearchParams();
     const [step, setStep] = useState(params.step ? parseInt(params.step as string) : 1);
+    const { showAlert } = useCustomAlert();
 
     // === Step 1 ===
     const [name, setName] = useState((params.name as string) || "");
@@ -61,7 +65,7 @@ export default function RegisterTechnician() {
                     if (!params.recovering) setName(user.displayName || "");
                 }
             } else {
-                alert("Silahkan login terlebih dahulu");
+                showAlert({ title: "Sesi Berakhir", message: "Silahkan login terlebih dahulu.", type: "warning" });
                 router.replace("/login");
             }
         };
@@ -172,7 +176,7 @@ export default function RegisterTechnician() {
     const handleNext = () => {
         if (step === 1) {
             if (!name || !phone || !location || !specialization || !experience) {
-                alert("Harap lengkapi semua data di langkah 1");
+                showAlert({ title: "Informasi", message: "Harap lengkapi semua data di langkah 1", type: "warning" });
                 return;
             }
             
@@ -198,12 +202,12 @@ export default function RegisterTechnician() {
             });
         } else if (step === 2) {
             if (!ktpImage || workImages.length === 0) {
-                alert("Harap upload foto KTP dan minimal 1 bukti kerja");
+                showAlert({ title: "Informasi", message: "Harap upload foto KTP dan minimal 1 bukti kerja", type: "warning" });
                 return;
             }
 
             if (!sopChecked) {
-                alert("Anda harus menyetujui SOP Rapid Repairs untuk melanjutkan");
+                showAlert({ title: "Informasi", message: "Anda harus menyetujui SOP Rapid Repairs untuk melanjutkan", type: "warning" });
                 return;
             }
 
@@ -241,7 +245,7 @@ export default function RegisterTechnician() {
             setStep(3);
         } else {
             if (!termsChecked) {
-                alert("Anda harus menyetujui pernyataan keaslian data");
+                showAlert({ title: "Informasi", message: "Anda harus menyetujui pernyataan keaslian data", type: "warning" });
                 return;
             }
             handleSubmit();
@@ -251,13 +255,13 @@ export default function RegisterTechnician() {
     const handleSubmit = async () => {
         const user = auth.currentUser;
         if (!user) {
-            alert("Sesi berakhir, silahkan login kembali");
+            showAlert({ title: "Informasi", message: "Sesi berakhir, silahkan login kembali", type: "warning" });
             router.replace("/login");
             return;
         }
 
         if (!ktpImage || workImages.length === 0) {
-            alert("Upload KTP dan bukti kerja dulu");
+            showAlert({ title: "Informasi", message: "Upload KTP dan bukti kerja dulu", type: "warning" });
             return;
         }
 
@@ -303,12 +307,22 @@ export default function RegisterTechnician() {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
+                    "bypass-tunnel-reminder": "true"
                 },
                 body: JSON.stringify(payload),
             });
 
-
-            const result = await response.json();
+            let result: any = {};
+            const contentType = response.headers.get("content-type");
+            if (contentType && contentType.includes("application/json")) {
+                result = await response.json();
+            } else {
+                const text = await response.text();
+                if (text.includes("502") || text.includes("Bad Gateway") || text.includes("tunnel")) {
+                    throw new Error("Backend server tidak merespon (502 Bad Gateway). Pastikan localtunnel / server backend Anda sudah berjalan.");
+                }
+                throw new Error(text.substring(0, 150) || `HTTP Error ${response.status}`);
+            }
 
             if (!response.ok) {
                 throw new Error(result.error || "Gagal mendaftar ke server");
@@ -327,18 +341,26 @@ export default function RegisterTechnician() {
             console.error("❌ ERROR REGISTER:", error);
             let errorMsg = error.message;
             if (error.message === "Network request failed") {
-                errorMsg = "Gagal terhubung ke server. Pastikan IP di api.js sudah benar dan server sudah jalan.";
+                errorMsg = "Gagal terhubung ke server. Pastikan IP di api.js sudah benar, server sudah jalan, dan localtunnel aktif.";
+            } else if (error.message && error.message.includes("JSON Parse error")) {
+                errorMsg = "Gagal memproses respon server. Pastikan localtunnel / server backend Anda sudah aktif.";
             }
-            alert("Error: " + errorMsg);
+            showAlert({ title: "Gagal Mendaftar", message: errorMsg, type: "error" });
         } finally {
             setLoading(false);
         }
     };
 
     const renderProgress = () => {
-        // According to the image, it uses 50% for step 1, 100% for step 2 & 3. We'll use 50%, 100%, 100% to match mockup
-        const percentage = step === 1 ? "50%" : "100%";
-        const fillWidth = step === 1 ? "50%" : "100%";
+        let percentage = "33%";
+        let fillWidth = "33%";
+        if (step === 2) {
+            percentage = "66%";
+            fillWidth = "66%";
+        } else if (step === 3) {
+            percentage = "100%";
+            fillWidth = "100%";
+        }
 
         return (
             <View style={styles.progressSection}>
@@ -374,7 +396,7 @@ export default function RegisterTechnician() {
             )}
 
             {/* BODY */}
-            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+            <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
 
                 {/* ================= STEP 1 ================= */}
                 {step === 1 && (
@@ -383,7 +405,7 @@ export default function RegisterTechnician() {
                         <TextInput
                             style={styles.input}
                             placeholder="Contoh: Budi Santoso"
-                            placeholderTextColor="#AAA"
+                            placeholderTextColor={Theme.colors.textMuted}
                             value={name}
                             onChangeText={setName}
                         />
@@ -403,7 +425,7 @@ export default function RegisterTechnician() {
                             <TextInput
                                 style={styles.phoneInput}
                                 placeholder="81234567890"
-                                placeholderTextColor="#AAA"
+                                placeholderTextColor={Theme.colors.textMuted}
                                 keyboardType="number-pad"
                                 value={phone}
                                 onChangeText={setPhone}
@@ -414,7 +436,7 @@ export default function RegisterTechnician() {
                         <TextInput
                             style={styles.input}
                             placeholder="Contoh: Jakarta Selatan"
-                            placeholderTextColor="#AAA"
+                            placeholderTextColor={Theme.colors.textMuted}
                             value={location}
                             onChangeText={setLocation}
                         />
@@ -504,58 +526,58 @@ export default function RegisterTechnician() {
 
                         <Text style={styles.label}>Upload KTP, Selfie, & Bukti Kerja</Text>
                         <View style={styles.uploadContainer}>
-                                <View style={styles.uploadRow}>
-                                    <TouchableOpacity style={styles.uploadBox} onPress={() => pickImage(setKtpImage)}>
-                                        {ktpImage ? (
-                                            <Image source={{ uri: ktpImage.uri }} style={styles.uploadedImage} />
-                                        ) : (
-                                            <View style={{ alignItems: 'center' }}>
-                                                <Ionicons name="camera-outline" size={28} color="#B3875E" />
-                                                <Text style={styles.uploadTitle}>Foto KTP +</Text>
-                                                <Text style={styles.uploadSub}>Selfie dengan KTP</Text>
+                            {/* KTP Upload Box (Full Width) */}
+                            <TouchableOpacity style={styles.ktpUploadBox} onPress={() => pickImage(setKtpImage)}>
+                                {ktpImage ? (
+                                    <Image source={{ uri: ktpImage.uri }} style={styles.uploadedImage} resizeMode="cover" />
+                                ) : (
+                                    <View style={{ alignItems: 'center' }}>
+                                        <Ionicons name="camera-outline" size={28} color="#B3875E" />
+                                        <Text style={styles.uploadTitle}>Foto KTP +</Text>
+                                        <Text style={styles.uploadSub}>Selfie dengan KTP</Text>
+                                    </View>
+                                )}
+                            </TouchableOpacity>
+                            
+                            {/* Horizontal Divider */}
+                            <View style={styles.uploadDividerHorizontal} />
+
+                            {/* Bukti Kerja Section (Horizontal ScrollView at the bottom) */}
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.workScrollView}>
+                                <View style={{ flexDirection: 'row' }}>
+                                    {/* Render existing images */}
+                                    {workImages.map((img, idx) => (
+                                        <TouchableOpacity 
+                                            key={idx} 
+                                            style={styles.workUploadBox}
+                                            onPress={() => {
+                                                const newImgs = [...workImages];
+                                                newImgs.splice(idx, 1);
+                                                setWorkImages(newImgs);
+                                            }}
+                                        >
+                                            <Image source={{ uri: img.uri }} style={styles.uploadedImage} resizeMode="cover" />
+                                            <View style={styles.deleteBadge}>
+                                                <Ionicons name="close" size={12} color="#FFF" />
                                             </View>
-                                        )}
-                                    </TouchableOpacity>
-                                    
-                                    <View style={styles.uploadDivider} />
+                                        </TouchableOpacity>
+                                    ))}
 
-                                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flex: 1 }}>
-                                        <View style={{ flexDirection: 'row' }}>
-                                            {/* Render existing images */}
-                                            {workImages.map((img, idx) => (
-                                                <TouchableOpacity 
-                                                    key={idx} 
-                                                    style={[styles.uploadBox, { marginRight: 10 }]}
-                                                    onPress={() => {
-                                                        const newImgs = [...workImages];
-                                                        newImgs.splice(idx, 1);
-                                                        setWorkImages(newImgs);
-                                                    }}
-                                                >
-                                                    <Image source={{ uri: img.uri }} style={styles.uploadedImage} />
-                                                    <View style={styles.deleteBadge}>
-                                                        <Ionicons name="close" size={12} color="#FFF" />
-                                                    </View>
-                                                </TouchableOpacity>
-                                            ))}
-
-                                            {/* Add Button (if < 5) */}
-                                            {workImages.length < 5 && (
-                                                <TouchableOpacity 
-                                                    style={styles.uploadBox} 
-                                                    onPress={() => pickImage((img: ImageType) => setWorkImages([...workImages, img]))}
-                                                >
-                                                    <View style={{ alignItems: 'center' }}>
-                                                        <Ionicons name="image-outline" size={28} color="#B3875E" />
-                                                        <Text style={styles.uploadTitle}>Bukti Kerja +</Text>
-                                                        <Text style={styles.uploadSub}>({workImages.length}/5 Foto)</Text>
-                                                    </View>
-                                                </TouchableOpacity>
-                                            )}
-                                        </View>
-                                    </ScrollView>
+                                    {/* Add Button (if < 5) */}
+                                    {workImages.length < 5 && (
+                                        <TouchableOpacity 
+                                            style={styles.workUploadBox} 
+                                            onPress={() => pickImage((img: ImageType) => setWorkImages([...workImages, img]))}
+                                        >
+                                            <View style={{ alignItems: 'center' }}>
+                                                <Ionicons name="image-outline" size={28} color="#B3875E" />
+                                                <Text style={styles.uploadTitle}>Bukti Kerja +</Text>
+                                                <Text style={styles.uploadSub}>({workImages.length}/5 Foto)</Text>
+                                            </View>
+                                        </TouchableOpacity>
+                                    )}
                                 </View>
-
+                            </ScrollView>
                         </View>
                         <Text style={styles.uploadNote}>
                             Unggah minimal 3 foto bukti kerja untuk menunjukan pengalaman Anda
@@ -632,7 +654,7 @@ export default function RegisterTechnician() {
                             <TextInput
                                 style={[styles.input, { marginTop: 10 }]}
                                 placeholder="Sebutkan status pekerjaan Anda"
-                                placeholderTextColor="#AAA"
+                                placeholderTextColor={Theme.colors.textMuted}
                                 value={otherEmploymentStatus}
                                 onChangeText={setOtherEmploymentStatus}
                             />
@@ -643,7 +665,7 @@ export default function RegisterTechnician() {
                             <TextInput
                                 style={styles.bankInputTop}
                                 placeholder="Nama Bank"
-                                placeholderTextColor="#AAA"
+                                placeholderTextColor={Theme.colors.textMuted}
                                 value={bankName}
                                 onChangeText={setBankName}
                             />
@@ -651,7 +673,7 @@ export default function RegisterTechnician() {
                             <TextInput
                                 style={styles.bankInputBottom}
                                 placeholder="Nomor Rekening"
-                                placeholderTextColor="#AAA"
+                                placeholderTextColor={Theme.colors.textMuted}
                                 keyboardType="number-pad"
                                 value={bankAccount}
                                 onChangeText={setBankAccount}
@@ -673,19 +695,13 @@ export default function RegisterTechnician() {
 
             {/* BOTTOM BAR WITH BUTTON */}
             <View style={styles.bottomBar}>
-                <TouchableOpacity 
-                    style={[styles.primaryBtn, loading && { opacity: 0.7 }]} 
+                <AnimatedButton 
+                    title={step === 3 ? "Kirim Pendaftaran" : `Lanjut ke Langkah ${step + 1}`}
                     onPress={handleNext}
+                    isLoading={loading}
                     disabled={loading}
-                >
-                    {loading ? (
-                        <ActivityIndicator color="#FFF" />
-                    ) : (
-                        <Text style={styles.primaryBtnText}>
-                            {step === 3 ? "Kirim Pendaftaran" : `Lanjut ke Langkah ${step + 1}`}
-                        </Text>
-                    )}
-                </TouchableOpacity>
+                    style={{ width: '100%' }}
+                />
             </View>
 
             {/* SOP MODAL */}
@@ -780,7 +796,7 @@ export default function RegisterTechnician() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: "#FAF6F0",
+        backgroundColor: Theme.colors.background,
     },
     loadingOverlay: {
         ...StyleSheet.absoluteFillObject,
@@ -793,7 +809,7 @@ const styles = StyleSheet.create({
         marginTop: 15,
         fontSize: 16,
         fontWeight: "600",
-        color: "#B3875E",
+        color: Theme.colors.primary,
     },
     header: {
         flexDirection: "row",
@@ -824,7 +840,7 @@ const styles = StyleSheet.create({
         width: 40,
         height: 40,
         borderRadius: 20,
-        backgroundColor: "white",
+        backgroundColor: Theme.colors.surface,
         justifyContent: "center",
         alignItems: "center",
         shadowColor: "#000",
@@ -834,10 +850,9 @@ const styles = StyleSheet.create({
         elevation: 2,
     },
     headerTitle: {
-        fontSize: 18,
-        fontWeight: "700",
+        ...Theme.typography.h3,
         marginLeft: 15,
-        color: "#222",
+        color: Theme.colors.text,
     },
     progressSection: {
         paddingHorizontal: 25,
@@ -851,54 +866,53 @@ const styles = StyleSheet.create({
     progressText: {
         fontSize: 14,
         fontWeight: "600",
-        color: "#333",
+        color: Theme.colors.text,
     },
     progressPercent: {
         fontSize: 12,
-        color: "#777",
+        color: Theme.colors.textMuted,
     },
     progressBarBg: {
         height: 6,
-        backgroundColor: "#E8DFD5",
+        backgroundColor: Theme.colors.border,
         borderRadius: 3,
         overflow: "hidden",
     },
     progressBarFill: {
         height: "100%",
-        backgroundColor: "#C0997B",
+        backgroundColor: Theme.colors.primary,
         borderRadius: 3,
     },
     scrollContent: {
         paddingHorizontal: 20,
-        paddingBottom: 100, // room for bottom bar
+        paddingBottom: 160, // room for bottom bar
     },
     stepContainer: {
         marginTop: 5,
     },
     label: {
-        fontSize: 14,
-        fontWeight: "700",
-        color: "#222",
+        ...Theme.typography.subtitle,
+        color: Theme.colors.text,
         marginBottom: 8,
         marginTop: 15,
     },
     input: {
-        backgroundColor: "#FFF",
+        backgroundColor: Theme.colors.surface,
         paddingHorizontal: 16,
         paddingVertical: 14,
         borderRadius: 16,
         fontSize: 15,
-        color: "#333",
+        color: Theme.colors.text,
         borderWidth: 1,
-        borderColor: "#EFEBE4",
+        borderColor: Theme.colors.border,
     },
     phoneInputContainer: {
         flexDirection: "row",
         alignItems: "center",
-        backgroundColor: "#FFF",
+        backgroundColor: Theme.colors.surface,
         borderRadius: 16,
         borderWidth: 1,
-        borderColor: "#EFEBE4",
+        borderColor: Theme.colors.border,
         overflow: "hidden",
     },
     phonePrefix: {
@@ -909,7 +923,7 @@ const styles = StyleSheet.create({
     },
     phonePrefixText: {
         fontWeight: "700",
-        color: "#222",
+        color: Theme.colors.text,
         fontSize: 15,
     },
     phoneInput: {
@@ -917,34 +931,34 @@ const styles = StyleSheet.create({
         paddingHorizontal: 12,
         paddingVertical: 14,
         fontSize: 15,
-        color: "#333",
+        color: Theme.colors.text,
     },
     inputDropdown: {
-        backgroundColor: "#FFF",
+        backgroundColor: Theme.colors.surface,
         paddingHorizontal: 16,
         paddingVertical: 14,
         borderRadius: 16,
         borderWidth: 1,
-        borderColor: "#EFEBE4",
+        borderColor: Theme.colors.border,
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
     },
     inputText: {
         fontSize: 15,
-        color: "#333",
+        color: Theme.colors.text,
     },
     placeholderText: {
         fontSize: 15,
-        color: "#AAA",
+        color: Theme.colors.border,
     },
     dropdownOverlay: {
-        backgroundColor: "#FFF",
+        backgroundColor: Theme.colors.surface,
         borderRadius: 12,
         marginTop: 5,
         paddingVertical: 5,
         borderWidth: 1,
-        borderColor: "#EFEBE4",
+        borderColor: Theme.colors.border,
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.1,
@@ -955,7 +969,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 12,
         borderBottomWidth: 1,
-        borderBottomColor: "#F5F5F5",
+        borderBottomColor: Theme.colors.border,
     },
     expRow: {
         flexDirection: "row",
@@ -964,25 +978,25 @@ const styles = StyleSheet.create({
     },
     expButton: {
         flex: 1,
-        backgroundColor: "#FFF",
+        backgroundColor: Theme.colors.surface,
         paddingVertical: 12,
         borderRadius: 8,
         marginRight: 8,
         alignItems: "center",
         borderWidth: 1,
-        borderColor: "#EFEBE4",
+        borderColor: Theme.colors.border,
     },
     expButtonActive: {
-        borderColor: "#B3875E",
+        borderColor: Theme.colors.primary,
         backgroundColor: "#FDF9F5",
     },
     expText: {
-        color: "#666",
+        color: Theme.colors.textMuted,
         fontSize: 14,
         fontWeight: "500",
     },
     expTextActive: {
-        color: "#B3875E",
+        color: Theme.colors.primary,
         fontWeight: "700",
     },
     toggleRow: {
@@ -992,19 +1006,19 @@ const styles = StyleSheet.create({
     },
     toggleBtn: {
         flex: 1,
-        backgroundColor: "#FFF",
+        backgroundColor: Theme.colors.surface,
         paddingVertical: 14,
         borderRadius: 25,
         alignItems: "center",
         borderWidth: 1,
-        borderColor: "#EFEBE4",
+        borderColor: Theme.colors.border,
     },
     toggleBtnActive: {
-        backgroundColor: "#BE9C80",
-        borderColor: "#BE9C80",
+        backgroundColor: Theme.colors.primary,
+        borderColor: Theme.colors.primary,
     },
     toggleText: {
-        color: "#666",
+        color: Theme.colors.textMuted,
         fontWeight: "600",
         fontSize: 15,
     },
@@ -1012,9 +1026,9 @@ const styles = StyleSheet.create({
         color: "#FFF",
     },
     uploadContainer: {
-        backgroundColor: "#FAF6F0",
+        backgroundColor: Theme.colors.background,
         borderWidth: 1,
-        borderColor: "#D2C4B7",
+        borderColor: Theme.colors.border,
         borderStyle: "dashed",
         borderRadius: 16,
         marginTop: 5,
@@ -1035,25 +1049,57 @@ const styles = StyleSheet.create({
     uploadDivider: {
         width: 1,
         height: "80%",
-        backgroundColor: "#D2C4B7",
+        backgroundColor: Theme.colors.border,
         marginHorizontal: 10,
+    },
+    ktpUploadBox: {
+        width: "100%",
+        height: 160,
+        backgroundColor: Theme.colors.surface,
+        borderRadius: 12,
+        justifyContent: "center",
+        alignItems: "center",
+        borderWidth: 1,
+        borderColor: Theme.colors.border,
+        overflow: "hidden",
+    },
+    uploadDividerHorizontal: {
+        height: 1,
+        backgroundColor: Theme.colors.border,
+        width: "100%",
+        marginVertical: 15,
+    },
+    workScrollView: {
+        width: "100%",
+    },
+    workUploadBox: {
+        width: 120,
+        height: 120,
+        backgroundColor: Theme.colors.surface,
+        borderRadius: 12,
+        justifyContent: "center",
+        alignItems: "center",
+        borderWidth: 1,
+        borderColor: Theme.colors.border,
+        marginRight: 10,
+        overflow: "hidden",
     },
     uploadTitle: {
         fontSize: 12,
         fontWeight: "700",
-        color: "#333",
+        color: Theme.colors.text,
         marginTop: 8,
         textAlign: "center",
     },
     uploadSub: {
         fontSize: 10,
-        color: "#777",
+        color: Theme.colors.textMuted,
         textAlign: "center",
         marginTop: 2,
     },
     uploadNote: {
         fontSize: 11,
-        color: "#888",
+        color: Theme.colors.textMuted,
         marginTop: 8,
         marginBottom: 15,
     },
@@ -1068,19 +1114,19 @@ const styles = StyleSheet.create({
         height: 20,
         borderRadius: 4,
         borderWidth: 1.5,
-        borderColor: "#B3875E",
+        borderColor: Theme.colors.primary,
         justifyContent: "center",
         alignItems: "center",
         marginRight: 12,
-        backgroundColor: "#FFF",
+        backgroundColor: Theme.colors.surface,
         marginTop: 2,
     },
     checkboxActive: {
-        backgroundColor: "#B3875E",
+        backgroundColor: Theme.colors.primary,
     },
     checkboxText: {
         fontSize: 13,
-        color: "#333",
+        color: Theme.colors.text,
         fontWeight: "600",
     },
     bottomBar: {
@@ -1088,7 +1134,7 @@ const styles = StyleSheet.create({
         bottom: 0,
         left: 0,
         right: 0,
-        backgroundColor: "#FFF",
+        backgroundColor: Theme.colors.surface,
         paddingHorizontal: 20,
         paddingVertical: 20,
         borderTopLeftRadius: 35,
@@ -1100,7 +1146,7 @@ const styles = StyleSheet.create({
         elevation: 10,
     },
     primaryBtn: {
-        backgroundColor: "#B3875E",
+        backgroundColor: Theme.colors.primary,
         paddingVertical: 16,
         borderRadius: 30,
         alignItems: "center",
@@ -1111,10 +1157,10 @@ const styles = StyleSheet.create({
         fontWeight: "700",
     },
     skillsContainer: {
-        backgroundColor: "#FFF",
+        backgroundColor: Theme.colors.surface,
         borderRadius: 16,
         borderWidth: 1,
-        borderColor: "#EFEBE4",
+        borderColor: Theme.colors.border,
         overflow: "hidden",
         marginTop: 5,
         marginBottom: 10,
@@ -1126,7 +1172,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 15,
         paddingVertical: 14,
         borderBottomWidth: 1,
-        borderBottomColor: "#F5F5F5",
+        borderBottomColor: Theme.colors.border,
     },
     skillLeft: {
         flexDirection: "row",
@@ -1134,12 +1180,12 @@ const styles = StyleSheet.create({
     },
     skillText: {
         fontSize: 14,
-        color: "#333",
+        color: Theme.colors.text,
         fontWeight: "500",
     },
     dropdownBtn: {
         flex: 1,
-        backgroundColor: "#FFF",
+        backgroundColor: Theme.colors.surface,
         paddingVertical: 14,
         paddingHorizontal: 12,
         borderRadius: 25,
@@ -1147,25 +1193,25 @@ const styles = StyleSheet.create({
         justifyContent: "center",
         alignItems: "center",
         borderWidth: 1,
-        borderColor: "#EFEBE4",
+        borderColor: Theme.colors.border,
     },
     dropdownBtnActive: {
-        borderColor: "#B3875E",
+        borderColor: Theme.colors.primary,
     },
     dropdownBtnText: {
-        color: "#555",
+        color: Theme.colors.textMuted,
         fontSize: 14,
         fontWeight: "500",
     },
     dropdownBtnTextActive: {
-        color: "#333",
+        color: Theme.colors.text,
         fontWeight: "700",
     },
     bankContainer: {
-        backgroundColor: "#FFF",
+        backgroundColor: Theme.colors.surface,
         borderRadius: 16,
         borderWidth: 1,
-        borderColor: "#EFEBE4",
+        borderColor: Theme.colors.border,
         overflow: "hidden",
         marginTop: 5,
     },
@@ -1173,7 +1219,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 14,
         fontSize: 15,
-        color: "#333",
+        color: Theme.colors.text,
     },
     divider: {
         height: 1,
@@ -1184,7 +1230,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 16,
         paddingVertical: 14,
         fontSize: 15,
-        color: "#333",
+        color: Theme.colors.text,
     },
     // MODAL STYLES
     modalOverlay: {
@@ -1193,7 +1239,7 @@ const styles = StyleSheet.create({
         justifyContent: "flex-end",
     },
     modalContent: {
-        backgroundColor: "#FFF",
+        backgroundColor: Theme.colors.surface,
         borderTopLeftRadius: 30,
         borderTopRightRadius: 30,
         paddingBottom: 30,
@@ -1204,7 +1250,7 @@ const styles = StyleSheet.create({
         paddingTop: 12,
         paddingBottom: 15,
         borderBottomWidth: 1,
-        borderBottomColor: "#F5F5F5",
+        borderBottomColor: Theme.colors.border,
     },
     modalDragHandle: {
         width: 40,
@@ -1214,9 +1260,8 @@ const styles = StyleSheet.create({
         marginBottom: 15,
     },
     modalTitle: {
-        fontSize: 18,
-        fontWeight: "800",
-        color: "#333",
+        ...Theme.typography.h2,
+        color: Theme.colors.text,
     },
     modalCloseBtn: {
         position: "absolute",
@@ -1225,7 +1270,7 @@ const styles = StyleSheet.create({
         width: 30,
         height: 30,
         borderRadius: 15,
-        backgroundColor: "#F5F5F5",
+        backgroundColor: Theme.colors.inputBg,
         justifyContent: "center",
         alignItems: "center",
     },
@@ -1248,22 +1293,20 @@ const styles = StyleSheet.create({
         marginTop: 2,
     },
     sopNumber: {
-        fontSize: 14,
-        fontWeight: "700",
+        ...Theme.typography.subtitle,
         color: "#8B5E3C",
     },
     sopTextContainer: {
         flex: 1,
     },
     sopPointTitle: {
-        fontSize: 15,
-        fontWeight: "700",
-        color: "#333",
+        ...Theme.typography.subtitle,
+        color: Theme.colors.text,
         marginBottom: 5,
     },
     sopPointDesc: {
         fontSize: 13,
-        color: "#777",
+        color: Theme.colors.textMuted,
         lineHeight: 20,
     },
     modalFooter: {
@@ -1280,9 +1323,8 @@ const styles = StyleSheet.create({
     },
     modalCheckboxText: {
         flex: 1,
-        fontSize: 13,
-        fontWeight: "600",
-        color: "#333",
+        ...Theme.typography.body,
+        color: Theme.colors.text,
         lineHeight: 18,
     },
     modalActionBtn: {

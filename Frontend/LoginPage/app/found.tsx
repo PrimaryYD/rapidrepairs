@@ -1,5 +1,4 @@
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { View, Text, StyleSheet, TouchableOpacity, Animated } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useEffect, useState, useRef } from "react";
 import { doc, onSnapshot, updateDoc, collection, query, where, getDocs } from "firebase/firestore";
@@ -8,9 +7,10 @@ import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
 
 import AcMapView from "../components/AcMapView";
+import { Theme } from "../constants/theme";
+import AnimatedButton from "../components/ui/AnimatedButton";
 
 export default function FoundScreen() {
-
     const router = useRouter();
     const { orderId } = useLocalSearchParams();
     const [order, setOrder] = useState<any>(null);
@@ -18,6 +18,8 @@ export default function FoundScreen() {
     const [techName, setTechName] = useState("Teknisi");
     const [routeInfo, setRouteInfo] = useState<{ distance: number; duration: number } | null>(null);
     const mapRef = useRef<any>(null);
+
+    const slideAnim = useRef(new Animated.Value(200)).current;
 
     // 📍 TRACK USER LOCATION
     useEffect(() => {
@@ -95,6 +97,20 @@ export default function FoundScreen() {
                             setTechName(techSnap.docs[0].data().name || "Teknisi");
                         }
                     }
+
+                    if (orderData.status === "arrived") {
+                        Animated.spring(slideAnim, {
+                            toValue: 0,
+                            friction: 8,
+                            useNativeDriver: true,
+                        }).start();
+                    } else {
+                        Animated.spring(slideAnim, {
+                            toValue: 0,
+                            friction: 8,
+                            useNativeDriver: true,
+                        }).start();
+                    }
                 }
             },
             (error) => {
@@ -108,7 +124,8 @@ export default function FoundScreen() {
     if (!order) {
         return (
             <View style={styles.loading}>
-                <Text>Memuat data teknisi...</Text>
+                <Ionicons name="compass" size={40} color={Theme.colors.primary} style={{ marginBottom: 16 }} />
+                <Text style={{ ...Theme.typography.body, color: Theme.colors.textMuted }}>Memuat data teknisi...</Text>
             </View>
         );
     }
@@ -139,7 +156,7 @@ export default function FoundScreen() {
                 
                 {order.status !== "arrived" && routeInfo ? (
                     <View style={styles.etaRow}>
-                        <Ionicons name="time-outline" size={16} color="#8B5E3C" />
+                        <Ionicons name="time-outline" size={16} color={Theme.colors.primaryDark} />
                         <Text style={styles.etaText}>
                             Tiba dalam <Text style={styles.etaHighlight}>~{Math.ceil(routeInfo.duration / 60)} mnt</Text> ({routeInfo.distance < 1000 ? `${routeInfo.distance.toFixed(0)} m` : `${(routeInfo.distance / 1000).toFixed(1)} km`})
                         </Text>
@@ -152,20 +169,20 @@ export default function FoundScreen() {
             </View>
 
             {/* BOTTOM CARD */}
-            <View style={styles.bottomCard}>
+            <Animated.View style={[styles.bottomCard, { transform: [{ translateY: slideAnim }] }]}>
                 <View style={styles.techInfo}>
                     <View style={styles.avatar}>
-                        <Ionicons name="person" size={24} color="#ccc" />
+                        <Ionicons name="person" size={24} color={Theme.colors.textMuted} />
                     </View>
                     <View style={{ flex: 1 }}>
                         <Text style={styles.techName}>{techName}</Text>
                         <View style={styles.ratingRow}>
-                            <Ionicons name="star" size={12} color="#F1C40F" />
+                            <Ionicons name="star" size={12} color={Theme.colors.warning} />
                             <Text style={styles.ratingText}>4.8 (Expert)</Text>
                         </View>
                     </View>
                     <TouchableOpacity style={styles.chatBtn}>
-                        <Ionicons name="chatbubble-ellipses-outline" size={20} color="#8B5E3C" />
+                        <Ionicons name="chatbubble-ellipses-outline" size={22} color={Theme.colors.primary} />
                     </TouchableOpacity>
                 </View>
 
@@ -175,17 +192,16 @@ export default function FoundScreen() {
                 </View>
 
                 {order.status === "arrived" && (
-                    <TouchableOpacity
-                        style={styles.btn}
+                    <AnimatedButton
+                        title="Lanjut ke Pembayaran"
                         onPress={() => router.push({
                             pathname: "/pembayaran" as any,
                             params: { orderId }
                         })}
-                    >
-                        <Text style={styles.btnText}>Lanjut ke Pembayaran</Text>
-                    </TouchableOpacity>
+                        style={styles.btn}
+                    />
                 )}
-            </View>
+            </Animated.View>
 
         </View>
     );
@@ -194,12 +210,13 @@ export default function FoundScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: "#fff"
+        backgroundColor: Theme.colors.background
     },
     loading: {
         flex: 1,
         justifyContent: "center",
-        alignItems: "center"
+        alignItems: "center",
+        backgroundColor: Theme.colors.background
     },
     map: {
         flex: 1
@@ -209,39 +226,38 @@ const styles = StyleSheet.create({
         top: 50,
         left: 20,
         right: 20,
-        backgroundColor: "#fff",
-        padding: 15,
-        borderRadius: 20,
-        elevation: 5,
+        backgroundColor: Theme.colors.surface,
+        padding: Theme.spacing.md,
+        borderRadius: Theme.radius.lg,
+        ...Theme.shadows.md,
         alignItems: "center"
     },
     topTitle: {
-        fontSize: 14,
-        fontWeight: "bold",
-        color: "#333"
+        ...Theme.typography.subtitle,
+        color: Theme.colors.text
     },
     topSubtitle: {
-        fontSize: 11,
-        color: "#777",
-        marginTop: 2
+        ...Theme.typography.caption,
+        color: Theme.colors.textMuted,
+        marginTop: 4
     },
     etaRow: {
         flexDirection: "row",
         alignItems: "center",
-        marginTop: 8,
-        backgroundColor: "#F9F6F2",
+        marginTop: Theme.spacing.sm,
+        backgroundColor: Theme.colors.primaryLight + '20', // Very light primary
         paddingVertical: 6,
         paddingHorizontal: 12,
-        borderRadius: 12,
+        borderRadius: Theme.radius.full,
         gap: 6
     },
     etaText: {
-        fontSize: 12,
-        color: "#555",
+        ...Theme.typography.caption,
+        color: Theme.colors.text,
         fontWeight: "500"
     },
     etaHighlight: {
-        color: "#8B5E3C",
+        color: Theme.colors.primaryDark,
         fontWeight: "bold"
     },
     bottomCard: {
@@ -249,72 +265,69 @@ const styles = StyleSheet.create({
         bottom: 20,
         left: 20,
         right: 20,
-        backgroundColor: "#fff",
-        padding: 20,
-        borderRadius: 25,
-        elevation: 10
+        backgroundColor: Theme.colors.surface,
+        padding: Theme.spacing.lg,
+        borderRadius: Theme.radius.xl,
+        ...Theme.shadows.lg
     },
     techInfo: {
         flexDirection: "row",
         alignItems: "center",
-        marginBottom: 15
+        marginBottom: Theme.spacing.md
     },
     avatar: {
-        width: 45,
-        height: 45,
+        width: 50,
+        height: 50,
         borderRadius: 25,
-        backgroundColor: "#eee",
+        backgroundColor: Theme.colors.inputBg,
         justifyContent: "center",
         alignItems: "center",
-        marginRight: 12
+        marginRight: Theme.spacing.md,
+        borderWidth: 1,
+        borderColor: Theme.colors.border
     },
     techName: {
-        fontSize: 16,
-        fontWeight: "bold",
-        color: "#333"
+        ...Theme.typography.h3,
+        color: Theme.colors.text
     },
     ratingRow: {
         flexDirection: "row",
         alignItems: "center",
-        gap: 4
+        gap: 4,
+        marginTop: 2
     },
     ratingText: {
-        fontSize: 11,
-        color: "#777"
+        ...Theme.typography.caption,
+        color: Theme.colors.textMuted
     },
     chatBtn: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: "#F9F6F2",
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: Theme.colors.primaryLight + '20',
         justifyContent: "center",
         alignItems: "center"
     },
     serviceBox: {
-        backgroundColor: "#F9F6F2",
-        padding: 12,
-        borderRadius: 15
+        backgroundColor: Theme.colors.inputBg,
+        padding: Theme.spacing.md,
+        borderRadius: Theme.radius.md,
+        borderWidth: 1,
+        borderColor: Theme.colors.border
     },
     serviceLabel: {
-        fontSize: 9,
-        fontWeight: "bold",
-        color: "#999"
+        fontSize: 10,
+        fontWeight: "700",
+        color: Theme.colors.textMuted,
+        letterSpacing: 0.5
     },
     serviceValue: {
-        fontSize: 13,
-        fontWeight: "bold",
-        color: "#333",
-        marginTop: 2
+        ...Theme.typography.body,
+        fontWeight: "600",
+        color: Theme.colors.text,
+        marginTop: 4
     },
     btn: {
-        backgroundColor: "#8B5E3C",
-        padding: 15,
-        borderRadius: 20,
-        alignItems: "center",
-        marginTop: 15
-    },
-    btnText: {
-        color: "#fff",
-        fontWeight: "bold"
+        marginTop: Theme.spacing.md
     }
 });

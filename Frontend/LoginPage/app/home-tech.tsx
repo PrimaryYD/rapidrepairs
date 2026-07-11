@@ -4,11 +4,17 @@ import {
     StyleSheet,
     TouchableOpacity,
     Switch,
-    Modal
+    Modal,
+    TextInput,
+    PanResponder,
+    Image,
+    ScrollView
 } from "react-native";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import * as Location from "expo-location";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 // FIREBASE
 import { auth, db } from "./_firebaseConfig";
@@ -18,25 +24,65 @@ import {
     updateDoc,
     collection,
     query,
-    where
+    where,
+    addDoc,
+    serverTimestamp
 } from "firebase/firestore";
-import { onAuthStateChanged } from "firebase/auth";
+import { onAuthStateChanged, signOut } from "firebase/auth";
+
+import { Theme } from "../constants/theme";
+import { useCustomAlert } from "../components/ui/GlobalAlertProvider";
+import AnimatedButton from "../components/ui/AnimatedButton";
+
+const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371; // Radius of the earth in km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a =
+        Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+        Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+        Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c; // Distance in km
+};
 
 export default function HomeTech() {
 
     const router = useRouter();
+    const { showAlert } = useCustomAlert();
 
     const [isActive, setIsActive] = useState(false);
     const [incomingOrder, setIncomingOrder] = useState<any>(null);
     const [showPopup, setShowPopup] = useState(false);
-    const [startTime] = useState(Date.now());
     const [orderCount, setOrderCount] = useState(0);
+    const [profilePic, setProfilePic] = useState<string | null>(null);
+    const [showDropdown, setShowDropdown] = useState(false);
+
+    // Withdraw State
+    const [showWithdrawModal, setShowWithdrawModal] = useState(false);
+    const [withdrawAmount, setWithdrawAmount] = useState("");
 
     // Dynamic Dashboard State
     const [techName, setTechName] = useState("Teknisi");
+    const [techCoords, setTechCoords] = useState<{ lat: number, lng: number } | null>(null);
     const [todayIncome, setTodayIncome] = useState(0);
     const [todayCompleted, setTodayCompleted] = useState(0);
-    const [recentActivities, setRecentActivities] = useState<any[]>([]);
+    const [todayOrders, setTodayOrders] = useState<any[]>([]);
+
+    const recentActivities = [...todayOrders].sort((a, b) => b.time - a.time);
+
+    // PanResponder for Modal
+    const panResponder = useRef(
+        PanResponder.create({
+            onStartShouldSetPanResponder: () => true,
+            onMoveShouldSetPanResponder: (_, gestureState) => gestureState.dy > 10,
+            onPanResponderRelease: (_, gestureState) => {
+                if (gestureState.dy > 50) {
+                    setShowWithdrawModal(false);
+                }
+            }
+        })
+    ).current;
 
     /* 🔥 STATUS AKTIF */
     useEffect(() => {
@@ -51,6 +97,10 @@ export default function HomeTech() {
                     if (docSnap.exists()) {
                         setIsActive(docSnap.data().isActive ?? false);
                         setTechName(docSnap.data().name || "Teknisi");
+                        setProfilePic(docSnap.data().profilePictureUrl || null);
+                        if (docSnap.data().coordinate) {
+                            setTechCoords(docSnap.data().coordinate);
+                        }
                     }
                 },
                 (error) => {
@@ -70,10 +120,42 @@ export default function HomeTech() {
 
         setIsActive(val);
 
-        await updateDoc(doc(db, "technicians", user.uid), {
-            isActive: val
-        });
+        let coordinate = null;
+
+        if (val) {
+            try {
+                let { status } = await Location.requestForegroundPermissionsAsync();
+                if (status !== "granted") {
+                    showAlert({ title: "Izin Diperlukan", message: "Izin lokasi diperlukan untuk menerima pesanan.", type: "warning" });
+                    setIsActive(false);
+                    return;
+                }
+
+                let loc = await Location.getCurrentPositionAsync({
+                    accuracy: Location.Accuracy.Balanced,
+                });
+                coordinate = {
+                    lat: loc.coords.latitude,
+                    lng: loc.coords.longitude
+                };
+            } catch (error) {
+                console.log("Error getting location:", error);
+                showAlert({ title: "Gagal Mengambil Lokasi", message: "Pastikan GPS Anda aktif.", type: "error" });
+                setIsActive(false);
+                return;
+            }
+        }
+
+        const updateData: any = { isActive: val };
+        if (coordinate) {
+            updateData.coordinate = coordinate;
+            setTechCoords(coordinate);
+        }
+
+        await updateDoc(doc(db, "technicians", user.uid), updateData);
     };
+
+    const isFirstLoad = useRef(true);
 
     /* 🔔 LISTENER ORDER */
     useEffect(() => {
@@ -90,15 +172,17 @@ export default function HomeTech() {
             q, 
             (snapshot) => {
                 setOrderCount(snapshot.size);
+                
+                if (isFirstLoad.current) {
+                    isFirstLoad.current = false;
+                    return; // Abaikan pesanan yang nyangkut/lama saat baru buka halaman
+                }
+
                 snapshot.docChanges().forEach((change) => {
                     if (change.type === "added") {
                         const data = change.doc.data();
-                        const createdAt = data.createdAt?.toMillis ? data.createdAt.toMillis() : Date.now();
-                        
-                        if (createdAt > startTime) {
-                            setIncomingOrder({ id: change.doc.id, ...data });
-                            setShowPopup(true);
-                        }
+                        setIncomingOrder({ id: change.doc.id, ...data });
+                        setShowPopup(true);
                     }
                 });
             },
@@ -138,8 +222,18 @@ export default function HomeTech() {
                     time = data.createdAt.toMillis();
                 }
                 
-                if (data.status === "completed" || data.escrowStatus === "released") {
-                    if (time >= startOfToday.getTime()) {
+                if (time >= startOfToday.getTime()) {
+                    if (data.isWithdrawal) {
+                        income -= (data.amount || 0);
+                        activities.push({
+                            id: docSnap.id,
+                            serviceName: `Pencairan ke Bank ${data.bank || "BCA"}`,
+                            time,
+                            earned: -(data.amount || 0),
+                            isReleased: true,
+                            type: "withdrawal"
+                        });
+                    } else if (data.status === "completed" || data.escrowStatus === "released") {
                         completed += 1;
                         
                         let earned = 0;
@@ -153,7 +247,8 @@ export default function HomeTech() {
                             serviceName: data.serviceType || "Layanan Perbaikan AC",
                             time,
                             earned,
-                            isReleased: data.escrowStatus === "released"
+                            isReleased: data.escrowStatus === "released",
+                            type: "order"
                         });
                     }
                 }
@@ -162,11 +257,13 @@ export default function HomeTech() {
             activities.sort((a, b) => b.time - a.time);
             setTodayIncome(income);
             setTodayCompleted(completed);
-            setRecentActivities(activities);
+            setTodayOrders(activities);
         });
 
         return () => unsub();
     }, []);
+
+
 
     /* ✅ TERIMA */
     const acceptOrder = async () => {
@@ -190,153 +287,217 @@ export default function HomeTech() {
         setIncomingOrder(null);
     };
 
+    // Calculate distance and duration dynamically for the popup modal
+    let displayDistance = "1.2 km";
+    let displayDuration = "3 menit";
+
+    if (techCoords && incomingOrder?.location) {
+        const dist = getDistance(
+            techCoords.lat,
+            techCoords.lng,
+            incomingOrder.location.lat,
+            incomingOrder.location.lng
+        );
+        displayDistance = `${dist.toFixed(1)} km`;
+        // Estimate duration based on speed: e.g. ~2.5 mins per km
+        const estMinutes = Math.max(1, Math.round(dist * 2.5));
+        displayDuration = `${estMinutes} menit`;
+    }
+
     return (
-        <View style={styles.container}>
+        <SafeAreaView style={styles.container}>
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.scrollContent}>
+                {/* HEADER */}
+                <View style={styles.header}>
+                    <View style={[styles.headerLeft, { zIndex: 9999 }]}>
+                        <View style={{ position: "relative" }}>
+                            <TouchableOpacity 
+                                style={styles.avatar}
+                                onPress={() => setShowDropdown(!showDropdown)}
+                            >
+                                {profilePic ? (
+                                    <Image source={{ uri: profilePic }} style={styles.avatarImage} />
+                                ) : (
+                                    <Ionicons name="person" size={18} color={Theme.colors.textMuted} />
+                                )}
+                            </TouchableOpacity>
+                            {showDropdown && (
+                                <View style={styles.dropdown}>
+                                    <TouchableOpacity 
+                                        style={styles.dropdownItem}
+                                        onPress={() => {
+                                            setShowDropdown(false);
+                                            router.push({
+                                                pathname: "/profile-settings" as any,
+                                                params: { from: "home-tech" }
+                                            });
+                                        }}
+                                    >
+                                        <Ionicons name="settings-outline" size={16} color={Theme.colors.text} style={{ marginRight: 8 }} />
+                                        <Text style={styles.dropdownText}>Pengaturan Akun</Text>
+                                    </TouchableOpacity>
+                                    <View style={styles.dropdownSeparator} />
+                                    <TouchableOpacity 
+                                        style={styles.dropdownItem}
+                                        onPress={async () => {
+                                            setShowDropdown(false);
+                                            try {
+                                                await signOut(auth);
+                                                router.replace("/login" as any);
+                                            } catch (e) {
+                                                console.error("Logout error", e);
+                                            }
+                                        }}
+                                    >
+                                        <Ionicons name="log-out-outline" size={16} color={Theme.colors.danger} style={{ marginRight: 8 }} />
+                                        <Text style={[styles.dropdownText, { color: Theme.colors.danger }]}>Keluar</Text>
+                                    </TouchableOpacity>
+                                </View>
+                            )}
+                        </View>
+                        <Text style={styles.greeting}>Halo, {techName}!</Text>
+                    </View>
 
-            {/* HEADER */}
-            <View style={styles.header}>
-                <View style={styles.headerLeft}>
-                    <View style={styles.avatar} />
-                    <Text style={styles.greeting}>Halo, {techName}!</Text>
-                </View>
+                    <View style={styles.headerRight}>
+                        {/* ORDER BADGE */}
+                        <TouchableOpacity 
+                            style={styles.notifBadge}
+                            onPress={() => orderCount > 0 && setShowPopup(true)}
+                        >
+                            <Ionicons name="clipboard-outline" size={22} color={Theme.colors.text} />
+                            {orderCount > 0 && (
+                                <View style={styles.badge}>
+                                    <Text style={styles.badgeText}>{orderCount}</Text>
+                                </View>
+                            )}
+                        </TouchableOpacity>
 
-                <View style={styles.headerRight}>
-                    {/* ORDER BADGE */}
-                    <TouchableOpacity 
-                        style={styles.notifBadge}
-                        onPress={() => orderCount > 0 && setShowPopup(true)}
-                    >
-                        <Ionicons name="clipboard-outline" size={22} color="#333" />
-                        {orderCount > 0 && (
-                            <View style={styles.badge}>
-                                <Text style={styles.badgeText}>{orderCount}</Text>
-                            </View>
-                        )}
-                    </TouchableOpacity>
-
-                    <View style={styles.notifBadge}>
-                        <Ionicons name="notifications-outline" size={22} />
-                        <View style={styles.redDot} />
+                        <View style={styles.notifBadge}>
+                            <Ionicons name="notifications-outline" size={22} color={Theme.colors.text} />
+                            <View style={styles.redDot} />
+                        </View>
                     </View>
                 </View>
-            </View>
 
-            {/* STATUS CARD */}
-            <View style={styles.statusCard}>
-
-                <View style={styles.statusRow}>
-                    <Text style={styles.statusText}>
-                        Status Bekerja:{" "}
-                        <Text style={{ color: isActive ? "#2ECC71" : "#E74C3C" }}>
-                            {isActive ? "AKTIF" : "NONAKTIF"}
+                {/* STATUS CARD */}
+                <View style={styles.statusCard}>
+                    <View style={styles.statusRow}>
+                        <Text style={styles.statusText}>
+                            Status Bekerja:{" "}
+                            <Text style={{ color: isActive ? Theme.colors.success : Theme.colors.danger }}>
+                                {isActive ? "AKTIF" : "NONAKTIF"}
+                            </Text>
                         </Text>
+
+                        <Switch
+                            value={isActive}
+                            onValueChange={toggleStatus}
+                            trackColor={{ false: Theme.colors.border, true: Theme.colors.success }}
+                            thumbColor="#fff"
+                        />
+                    </View>
+
+                    <Text style={styles.statusDesc}>
+                        {isActive
+                            ? "Anda sedang mencari pesanan di sekitar Anda."
+                            : "Aktifkan status untuk mulai menerima pesanan baru."}
                     </Text>
 
-                    <Switch
-                        value={isActive}
-                        onValueChange={toggleStatus}
-                        trackColor={{ false: "#ccc", true: "#2ECC71" }}
-                        thumbColor="#fff"
-                    />
+                    {!isActive && (
+                        <TouchableOpacity
+                            style={styles.startBtn}
+                            onPress={() => toggleStatus(true)}
+                        >
+                            <Text style={styles.startBtnText}>Mulai Bekerja</Text>
+                        </TouchableOpacity>
+                    )}
                 </View>
 
-                <Text style={styles.statusDesc}>
-                    {isActive
-                        ? "Anda sedang mencari pesanan di sekitar Anda."
-                        : "Aktifkan status untuk mulai menerima pesanan baru."}
-                </Text>
+                {/* RINGKASAN */}
+                <Text style={styles.sectionTitle}>Ringkasan Hari Ini</Text>
 
-                {!isActive && (
-                    <TouchableOpacity
-                        style={styles.startBtn}
-                        onPress={() => toggleStatus(true)}
-                    >
-                        <Text style={styles.startBtnText}>Mulai Bekerja</Text>
-                    </TouchableOpacity>
+                <View style={styles.summaryRow}>
+                    <View style={styles.summaryCard}>
+                        <Text style={styles.summaryLabel}>PENDAPATAN</Text>
+                        <Text style={styles.summaryValue}>Rp {todayIncome.toLocaleString("id-ID")}</Text>
+                        
+                        <TouchableOpacity 
+                            style={styles.tarikDanaBtn}
+                            onPress={() => setShowWithdrawModal(true)}
+                        >
+                            <Text style={styles.tarikDanaText}>Tarik Dana</Text>
+                        </TouchableOpacity>
+                    </View>
+
+                    <View style={styles.summaryCard}>
+                        <Text style={styles.summaryLabel}>SELESAI</Text>
+                        <Text style={styles.summaryValue}>{todayCompleted} Pesanan</Text>
+                    </View>
+                </View>
+
+                {/* AKTIVITAS */}
+                <Text style={styles.sectionTitle}>Aktivitas Terkini</Text>
+
+                {recentActivities.length > 0 ? (
+                    recentActivities.slice(0, 3).map((act) => (
+                        <View key={act.id} style={styles.activityCard}>
+                            <View style={[styles.iconCircle, act.type === "withdrawal" && { backgroundColor: Theme.colors.warning + '15' }]}>
+                                {act.type === "withdrawal" ? (
+                                    <Ionicons name="arrow-up" size={16} color={Theme.colors.warning} style={{ transform: [{ rotate: "45deg" }] }} />
+                                ) : (
+                                    <Ionicons name="arrow-down" size={16} color={Theme.colors.success} style={{ transform: [{ rotate: "45deg" }] }} />
+                                )}
+                            </View>
+
+                            <View style={{ flex: 1 }}>
+                                <Text style={styles.activityTitle}>{act.serviceName}</Text>
+                                <Text style={styles.activityTime}>
+                                    Hari ini, {new Date(act.time).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB
+                                </Text>
+                            </View>
+
+                            {act.type === "withdrawal" ? (
+                                <Text style={[styles.activityPrice, { color: Theme.colors.danger }]}>- Rp {Math.abs(act.earned).toLocaleString("id-ID")}</Text>
+                            ) : act.isReleased ? (
+                                <Text style={styles.activityPrice}>+ Rp {act.earned.toLocaleString("id-ID")}</Text>
+                            ) : (
+                                <Text style={[styles.activityPrice, { color: Theme.colors.primary }]}>Menunggu Cair</Text>
+                            )}
+                        </View>
+                    ))
+                ) : (
+                    <Text style={styles.emptyText}>
+                        Belum ada aktivitas hari ini.
+                    </Text>
                 )}
 
-            </View>
+            </ScrollView>
 
-            {/* RINGKASAN */}
-            <Text style={styles.sectionTitle}>Ringkasan Hari Ini</Text>
-
-            <View style={styles.summaryRow}>
-                <View style={styles.summaryCard}>
-                    <Text style={styles.summaryLabel}>PENDAPATAN</Text>
-                    <Text style={styles.summaryValue}>Rp {todayIncome.toLocaleString("id-ID")}</Text>
-                </View>
-
-                <View style={styles.summaryCard}>
-                    <Text style={styles.summaryLabel}>SELESAI</Text>
-                    <Text style={styles.summaryValue}>{todayCompleted} Pesanan</Text>
-                </View>
-            </View>
-
-            {/* AKTIVITAS */}
-            <Text style={styles.sectionTitle}>Aktivitas Terkini</Text>
-
-            {recentActivities.length > 0 ? (
-                recentActivities.slice(0, 3).map((act) => (
-                    <View key={act.id} style={styles.activityCard}>
-                        <View style={styles.iconCircle}>
-                            <Ionicons name="checkmark" size={16} color="#2ECC71" />
-                        </View>
-
-                        <View style={{ flex: 1 }}>
-                            <Text style={styles.activityTitle}>{act.serviceName}</Text>
-                            <Text style={styles.activityTime}>
-                                Hari ini, {new Date(act.time).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB
-                            </Text>
-                        </View>
-
-                        {act.isReleased ? (
-                            <Text style={styles.activityPrice}>+ Rp {act.earned.toLocaleString("id-ID")}</Text>
-                        ) : (
-                            <Text style={[styles.activityPrice, { color: '#B3875E' }]}>Menunggu Cair</Text>
-                        )}
-                    </View>
-                ))
-            ) : (
-                <Text style={{ textAlign: 'center', color: '#888', marginVertical: 20 }}>
-                    Belum ada aktivitas hari ini.
-                </Text>
-            )}
-
+            {/* BOTTOM NAV BAR */}
             <View style={styles.bottomBar}>
-
                 <TouchableOpacity style={styles.navItemActive}>
-                    <Ionicons name="home" size={20} color="#8B5E3C" />
+                    <Ionicons name="home" size={24} color={Theme.colors.primary} />
                     <Text style={styles.navTextActive}>Beranda</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity style={styles.navItem}>
-                    <Ionicons name="time-outline" size={20} color="#999" />
+                    <Ionicons name="time-outline" size={24} color={Theme.colors.textMuted} />
                     <Text style={styles.navText}>Riwayat</Text>
                 </TouchableOpacity>
-
-                <TouchableOpacity style={styles.navItem}>
-                    <Ionicons name="briefcase-outline" size={20} color="#999" />
-                    <Text style={styles.navText}>Dompet</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity style={styles.navItem}>
-                    <Ionicons name="person-outline" size={20} color="#999" />
-                    <Text style={styles.navText}>Profil</Text>
-                </TouchableOpacity>
-
             </View>
+
             {/* 🔔 MODAL NOTIFIKASI ORDER */}
             <Modal
                 visible={showPopup}
                 transparent
-                animationType="slide"
+                animationType="fade"
             >
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
                         
                         {/* FLOATING BELL */}
                         <View style={styles.bellCircle}>
-                            <Ionicons name="notifications-outline" size={30} color="#8B5E3C" />
+                            <Ionicons name="notifications-outline" size={32} color={Theme.colors.primary} />
                         </View>
 
                         <Text style={styles.modalTitle}>Pesanan Baru Masuk!</Text>
@@ -345,11 +506,11 @@ export default function HomeTech() {
                         {/* ADDRESS SECTION */}
                         <View style={styles.addressCard}>
                             <View style={styles.locationIcon}>
-                                <Ionicons name="location-outline" size={20} color="#8B5E3C" />
+                                <Ionicons name="location-outline" size={20} color={Theme.colors.primary} />
                             </View>
-                            <View>
+                            <View style={{ flex: 1 }}>
                                 <Text style={styles.addressLabel}>ALAMAT PELANGGAN</Text>
-                                <Text style={styles.addressValue} numberOfLines={1}>
+                                <Text style={styles.addressValue} numberOfLines={2}>
                                     {incomingOrder?.userAddress || "Jl. Kebahagiaan No. 123"}
                                 </Text>
                             </View>
@@ -358,13 +519,13 @@ export default function HomeTech() {
                         {/* CUSTOMER CARD */}
                         <View style={styles.customerCard}>
                             <View style={styles.customerAvatar}>
-                                <Ionicons name="person" size={26} color="#ccc" />
+                                <Ionicons name="person" size={26} color={Theme.colors.textMuted} />
                             </View>
                             <View style={{ flex: 1 }}>
-                                <Text style={styles.customerName}>{incomingOrder?.userName || "Bryant"}</Text>
+                                <Text style={styles.customerName}>{incomingOrder?.userName || "Pelanggan"}</Text>
                                 <View style={styles.customerMeta}>
-                                    <Ionicons name="location-sharp" size={12} color="#8B5E3C" />
-                                    <Text style={styles.metaText}>1.2 km dari Anda</Text>
+                                    <Ionicons name="location-sharp" size={12} color={Theme.colors.primary} />
+                                    <Text style={styles.metaText}>{displayDistance} ({displayDuration}) dari Anda</Text>
                                 </View>
                                 <View style={styles.ratingRow}>
                                     <Ionicons name="star" size={12} color="#F1C40F" />
@@ -388,10 +549,11 @@ export default function HomeTech() {
                         </View>
 
                         {/* BUTTONS */}
-                        <TouchableOpacity style={styles.acceptBtnRedesign} onPress={acceptOrder}>
-                            <Text style={styles.acceptBtnTextRedesign}>Terima Pesanan</Text>
-                        </TouchableOpacity>
-
+                        <AnimatedButton
+                            title="Terima Pesanan"
+                            onPress={acceptOrder}
+                            style={{ marginBottom: Theme.spacing.sm, width: '100%' }}
+                        />
                         <TouchableOpacity style={styles.rejectBtnRedesign} onPress={rejectOrder}>
                             <Text style={styles.rejectBtnTextRedesign}>Tolak</Text>
                         </TouchableOpacity>
@@ -400,387 +562,601 @@ export default function HomeTech() {
                 </View>
             </Modal>
 
-        </View>
+            {/* 💰 MODAL TARIK DANA */}
+            <Modal
+                visible={showWithdrawModal}
+                transparent
+                animationType="slide"
+            >
+                <View style={styles.withdrawModalOverlay}>
+                    <View style={styles.withdrawModalContent} {...panResponder.panHandlers}>
+                        
+                        <View style={styles.withdrawHandle} />
+
+                        <Text style={styles.withdrawTitle}>Tarik Dana</Text>
+
+                        <View style={styles.withdrawInputHeader}>
+                            <Text style={styles.withdrawLabel}>Nominal Penarikan</Text>
+                            <TouchableOpacity onPress={() => setWithdrawAmount(todayIncome.toString())}>
+                                <Text style={styles.tarikSemuaText}>Tarik Semua</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={styles.withdrawInputContainer}>
+                            <Text style={styles.withdrawCurrency}>Rp </Text>
+                            <TextInput
+                                style={styles.withdrawInput}
+                                keyboardType="numeric"
+                                value={withdrawAmount}
+                                onChangeText={setWithdrawAmount}
+                                placeholder="0"
+                                placeholderTextColor={Theme.colors.textMuted}
+                            />
+                        </View>
+
+                        <View style={styles.bankCard}>
+                            <View style={styles.bankLogoCircle}>
+                                <Text style={styles.bankLogoText}>BCA</Text>
+                            </View>
+                            <View>
+                                <Text style={styles.bankNameText}>BCA - 123456789</Text>
+                                <Text style={styles.bankOwnerText}>a.n. Budi Santoso</Text>
+                            </View>
+                        </View>
+
+                        <AnimatedButton
+                            title="Konfirmasi Penarikan"
+                            onPress={async () => {
+                                const amountStr = withdrawAmount || "0";
+                                setShowWithdrawModal(false);
+                                
+                                const user = auth.currentUser;
+                                if (user) {
+                                    try {
+                                        await addDoc(collection(db, "orders"), {
+                                            technicianId: user.uid,
+                                            isWithdrawal: true,
+                                            amount: parseInt(amountStr),
+                                            bank: "BCA",
+                                            status: "processing",
+                                            createdAt: serverTimestamp()
+                                        });
+                                    } catch (e) {
+                                        console.log("Withdrawal save error", e);
+                                    }
+                                }
+
+                                router.push({
+                                    pathname: "/withdraw-processing",
+                                    params: { amount: amountStr }
+                                });
+                                setWithdrawAmount("");
+                            }}
+                            style={{ width: '100%' }}
+                        />
+
+                    </View>
+                </View>
+            </Modal>
+
+        </SafeAreaView>
     );
 }
 
 const styles = StyleSheet.create({
-
     container: {
         flex: 1,
-        backgroundColor: "#F6F2EA",
-        padding: 16,
-        paddingBottom: 80 // 🔥 WAJIB
+        backgroundColor: Theme.colors.background,
     },
-
+    scrollContent: {
+        padding: Theme.spacing.lg,
+        paddingBottom: 100, // Make room for bottom bar
+    },
     header: {
         flexDirection: "row",
         justifyContent: "space-between",
         alignItems: "center",
-        marginBottom: 20
+        marginBottom: Theme.spacing.xl,
     },
-
     headerLeft: {
         flexDirection: "row",
         alignItems: "center",
-        gap: 8
+        gap: Theme.spacing.sm,
     },
-
     headerRight: {
         flexDirection: "row",
         alignItems: "center",
-        gap: 12
+        gap: Theme.spacing.md,
     },
-
     avatar: {
-        width: 35,
-        height: 35,
-        borderRadius: 18,
-        backgroundColor: "#ddd"
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: Theme.colors.inputBg,
+        justifyContent: "center",
+        alignItems: "center",
+        overflow: "hidden",
+        borderWidth: 1,
+        borderColor: Theme.colors.border,
     },
-
+    avatarImage: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+    },
     greeting: {
-        fontWeight: "600",
-        fontSize: 15
+        ...Theme.typography.h3,
+        color: Theme.colors.text,
     },
-
     notifBadge: {
-        backgroundColor: "#fff",
-        padding: 8,
-        borderRadius: 20,
-        elevation: 2,
-        position: "relative"
+        backgroundColor: Theme.colors.surface,
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        justifyContent: 'center',
+        alignItems: 'center',
+        ...Theme.shadows.sm,
+        position: "relative",
     },
-
     badge: {
         position: "absolute",
         top: -4,
         right: -4,
-        backgroundColor: "#E74C3C",
-        width: 18,
-        height: 18,
-        borderRadius: 9,
+        backgroundColor: Theme.colors.danger,
+        width: 20,
+        height: 20,
+        borderRadius: 10,
         justifyContent: "center",
         alignItems: "center",
         borderWidth: 2,
-        borderColor: "#fff"
+        borderColor: Theme.colors.surface,
     },
-
     badgeText: {
         color: "#fff",
-        fontSize: 9,
-        fontWeight: "bold"
+        fontSize: 10,
+        fontWeight: "bold",
     },
-
     redDot: {
         position: "absolute",
-        top: 8,
-        right: 8,
-        width: 6,
-        height: 6,
-        borderRadius: 3,
-        backgroundColor: "#E74C3C"
+        top: 10,
+        right: 12,
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: Theme.colors.danger,
     },
-
     /* STATUS */
     statusCard: {
-        backgroundColor: "#fff",
-        padding: 16,
-        borderRadius: 16,
-        marginBottom: 20,
-        elevation: 3
+        backgroundColor: Theme.colors.surface,
+        padding: Theme.spacing.lg,
+        borderRadius: Theme.radius.xl,
+        marginBottom: Theme.spacing.xl,
+        ...Theme.shadows.md,
+        borderWidth: 1,
+        borderColor: Theme.colors.border,
     },
-
     statusRow: {
         flexDirection: "row",
         justifyContent: "space-between",
-        alignItems: "center"
-    },
-
-    statusText: {
-        fontWeight: "600"
-    },
-
-    statusDesc: {
-        fontSize: 12,
-        color: "#777",
-        marginTop: 6
-    },
-
-    startBtn: {
-        backgroundColor: "#8B5E3C",
-        padding: 12,
-        borderRadius: 25,
         alignItems: "center",
-        marginTop: 10
     },
-
+    statusText: {
+        ...Theme.typography.subtitle,
+        color: Theme.colors.text,
+    },
+    statusDesc: {
+        ...Theme.typography.body,
+        color: Theme.colors.textMuted,
+        marginTop: Theme.spacing.sm,
+    },
+    startBtn: {
+        backgroundColor: Theme.colors.primary,
+        paddingVertical: 14,
+        borderRadius: Theme.radius.lg,
+        alignItems: "center",
+        marginTop: Theme.spacing.md,
+    },
     startBtnText: {
         color: "#fff",
-        fontWeight: "600"
+        fontWeight: "700",
+        fontSize: 16,
     },
-
     /* SECTION */
     sectionTitle: {
-        fontWeight: "600",
-        marginBottom: 10
+        ...Theme.typography.h3,
+        color: Theme.colors.text,
+        marginBottom: Theme.spacing.md,
     },
-
     /* SUMMARY */
     summaryRow: {
         flexDirection: "row",
         justifyContent: "space-between",
-        marginBottom: 20
+        marginBottom: Theme.spacing.xl,
     },
-
     summaryCard: {
-        backgroundColor: "#EDE6DD",
-        padding: 15,
-        borderRadius: 14,
-        width: "48%"
+        backgroundColor: Theme.colors.primaryLight + '20',
+        padding: Theme.spacing.lg,
+        borderRadius: Theme.radius.lg,
+        width: "48%",
+        borderWidth: 1,
+        borderColor: Theme.colors.primaryLight + '40',
     },
-
     summaryLabel: {
-        fontSize: 10,
-        color: "#777"
+        ...Theme.typography.caption,
+        color: Theme.colors.textMuted,
+        fontWeight: "600",
     },
-
     summaryValue: {
-        fontWeight: "700",
-        marginTop: 5
+        ...Theme.typography.h3,
+        color: Theme.colors.text,
+        marginTop: Theme.spacing.xs,
+        marginBottom: Theme.spacing.sm,
     },
-
+    tarikDanaBtn: {
+        backgroundColor: Theme.colors.primary,
+        paddingVertical: 8,
+        borderRadius: Theme.radius.md,
+        alignItems: "center",
+    },
+    tarikDanaText: {
+        color: "#fff",
+        fontSize: 12,
+        fontWeight: "600",
+    },
     /* ACTIVITY */
     activityCard: {
-        backgroundColor: "#fff",
-        padding: 12,
-        borderRadius: 14,
+        backgroundColor: Theme.colors.surface,
+        padding: Theme.spacing.md,
+        borderRadius: Theme.radius.lg,
         flexDirection: "row",
         alignItems: "center",
-        elevation: 2
+        ...Theme.shadows.sm,
+        borderWidth: 1,
+        borderColor: Theme.colors.border,
+        marginBottom: Theme.spacing.md,
     },
-
     iconCircle: {
-        width: 35,
-        height: 35,
-        borderRadius: 18,
-        backgroundColor: "#E8F8F1",
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: Theme.colors.success + '15',
         justifyContent: "center",
         alignItems: "center",
-        marginRight: 10
+        marginRight: Theme.spacing.md,
     },
-
     activityTitle: {
-        fontWeight: "600"
+        ...Theme.typography.subtitle,
+        color: Theme.colors.text,
     },
-
     activityTime: {
-        fontSize: 12,
-        color: "#777"
+        ...Theme.typography.caption,
+        color: Theme.colors.textMuted,
+        marginTop: 2,
     },
-
     activityPrice: {
-        color: "#2ECC71",
-        fontWeight: "600"
+        color: Theme.colors.success,
+        fontWeight: "700",
+        fontSize: 14,
     },
-
+    emptyText: {
+        textAlign: 'center',
+        ...Theme.typography.body,
+        color: Theme.colors.textMuted,
+        marginVertical: Theme.spacing.xl,
+    },
+    /* BOTTOM NAV */
     bottomBar: {
         position: "absolute",
-        bottom: 10,
-        left: 10,
-        right: 10,
+        bottom: 24,
+        left: 24,
+        right: 24,
         flexDirection: "row",
         justifyContent: "space-around",
-        backgroundColor: "#fff",
-        paddingVertical: 12,
-        borderRadius: 20,
-        elevation: 5
+        backgroundColor: "rgba(255, 255, 255, 0.9)",
+        paddingVertical: 16,
+        borderRadius: 30,
+        ...Theme.shadows.lg,
+        borderWidth: 1,
+        borderColor: "rgba(255,255,255,0.5)",
     },
-
     navItem: {
-        alignItems: "center"
+        alignItems: "center",
+        opacity: 0.5,
     },
-
     navItemActive: {
-        alignItems: "center"
+        alignItems: "center",
+        opacity: 1,
     },
-
     navText: {
-        fontSize: 10,
-        color: "#999",
-        marginTop: 3
+        fontSize: 12,
+        color: Theme.colors.textMuted,
+        marginTop: 4,
+        fontWeight: "500",
     },
-
     navTextActive: {
-        fontSize: 10,
-        color: "#8B5E3C",
-        marginTop: 3,
-        fontWeight: "600"
+        fontSize: 12,
+        color: Theme.colors.primary,
+        marginTop: 4,
+        fontWeight: "700",
     },
-
     /* MODAL REDESIGN */
     modalOverlay: {
         flex: 1,
-        backgroundColor: "rgba(0,0,0,0.6)",
+        backgroundColor: "rgba(0,0,0,0.5)",
         justifyContent: "center",
-        alignItems: "center"
+        alignItems: "center",
+        padding: Theme.spacing.lg,
     },
     modalContent: {
-        backgroundColor: "#fff",
-        width: "90%",
-        borderRadius: 30,
-        padding: 25,
-        paddingTop: 40,
+        backgroundColor: Theme.colors.surface,
+        width: "100%",
+        borderRadius: Theme.radius.xl,
+        padding: Theme.spacing.xl,
+        paddingTop: 45,
         alignItems: "center",
-        elevation: 10
+        ...Theme.shadows.lg,
     },
     bellCircle: {
         position: "absolute",
-        top: -30,
-        backgroundColor: "#fff",
-        width: 60,
-        height: 60,
-        borderRadius: 30,
+        top: -35,
+        backgroundColor: Theme.colors.surface,
+        width: 70,
+        height: 70,
+        borderRadius: 35,
         justifyContent: "center",
         alignItems: "center",
-        elevation: 5,
-        borderWidth: 1,
-        borderColor: "#eee"
+        ...Theme.shadows.md,
+        borderWidth: 4,
+        borderColor: Theme.colors.background,
     },
     modalTitle: {
-        fontSize: 20,
-        fontWeight: "bold",
-        color: "#333",
-        marginTop: 10
+        ...Theme.typography.h2,
+        color: Theme.colors.text,
+        marginTop: Theme.spacing.sm,
     },
     modalSubtitle: {
-        fontSize: 12,
-        color: "#777",
+        ...Theme.typography.body,
+        color: Theme.colors.textMuted,
         textAlign: "center",
-        marginTop: 5,
-        marginBottom: 20
+        marginTop: Theme.spacing.xs,
+        marginBottom: Theme.spacing.lg,
     },
     addressCard: {
         flexDirection: "row",
         alignItems: "center",
-        backgroundColor: "#fff",
-        padding: 15,
-        borderRadius: 20,
+        backgroundColor: Theme.colors.background,
+        padding: Theme.spacing.md,
+        borderRadius: Theme.radius.lg,
         width: "100%",
         borderWidth: 1,
-        borderColor: "#f0f0f0",
-        marginBottom: 15,
-        elevation: 2
+        borderColor: Theme.colors.border,
+        marginBottom: Theme.spacing.md,
     },
     locationIcon: {
-        width: 40,
-        height: 40,
-        backgroundColor: "#F9F6F2",
-        borderRadius: 20,
+        width: 44,
+        height: 44,
+        backgroundColor: Theme.colors.primaryLight + '20',
+        borderRadius: 22,
         justifyContent: "center",
         alignItems: "center",
-        marginRight: 12
+        marginRight: Theme.spacing.md,
     },
     addressLabel: {
-        fontSize: 10,
-        color: "#999",
-        fontWeight: "bold"
+        ...Theme.typography.caption,
+        color: Theme.colors.textMuted,
+        fontWeight: "700",
+        marginBottom: 2,
     },
     addressValue: {
-        fontSize: 13,
-        fontWeight: "bold",
-        color: "#333",
-        width: 200
+        ...Theme.typography.subtitle,
+        color: Theme.colors.text,
     },
     customerCard: {
         flexDirection: "row",
-        backgroundColor: "#F9F6F2",
-        padding: 15,
-        borderRadius: 20,
+        backgroundColor: Theme.colors.background,
+        padding: Theme.spacing.md,
+        borderRadius: Theme.radius.lg,
         width: "100%",
-        marginBottom: 15
+        marginBottom: Theme.spacing.md,
+        borderWidth: 1,
+        borderColor: Theme.colors.border,
     },
     customerAvatar: {
         width: 50,
         height: 50,
         borderRadius: 25,
-        backgroundColor: "#fff",
+        backgroundColor: Theme.colors.inputBg,
         justifyContent: "center",
         alignItems: "center",
-        marginRight: 15
+        marginRight: Theme.spacing.md,
     },
     customerName: {
-        fontWeight: "bold",
-        fontSize: 16
+        ...Theme.typography.subtitle,
+        color: Theme.colors.text,
     },
     customerMeta: {
         flexDirection: "row",
         alignItems: "center",
         gap: 4,
-        marginTop: 2
+        marginTop: 4,
     },
     metaText: {
-        fontSize: 11,
-        color: "#777"
+        ...Theme.typography.caption,
+        color: Theme.colors.textMuted,
     },
     ratingRow: {
         flexDirection: "row",
         alignItems: "center",
         gap: 2,
-        marginTop: 4
+        marginTop: 6,
     },
     ratingText: {
-        fontSize: 11,
-        color: "#777",
-        marginLeft: 5
+        ...Theme.typography.caption,
+        color: Theme.colors.textMuted,
+        marginLeft: Theme.spacing.xs,
     },
     serviceBox: {
         width: "100%",
-        marginBottom: 20
+        marginBottom: Theme.spacing.xl,
     },
     serviceLabel: {
-        fontSize: 10,
-        fontWeight: "bold",
-        color: "#999",
-        marginLeft: 10,
-        marginBottom: 5
+        ...Theme.typography.caption,
+        color: Theme.colors.textMuted,
+        fontWeight: "700",
+        marginLeft: Theme.spacing.xs,
+        marginBottom: Theme.spacing.xs,
     },
     serviceInner: {
-        backgroundColor: "#fff",
-        padding: 12,
-        borderRadius: 15,
+        backgroundColor: Theme.colors.surface,
+        padding: Theme.spacing.md,
+        borderRadius: Theme.radius.lg,
         borderWidth: 1,
-        borderColor: "#f0f0f0"
+        borderColor: Theme.colors.border,
     },
     serviceValue: {
-        fontSize: 13,
-        fontWeight: "bold",
-        color: "#333"
-    },
-    acceptBtnRedesign: {
-        backgroundColor: "#C5A880",
-        width: "100%",
-        paddingVertical: 15,
-        borderRadius: 20,
-        alignItems: "center",
-        marginBottom: 10
-    },
-    acceptBtnTextRedesign: {
-        color: "#fff",
-        fontWeight: "bold",
-        fontSize: 15
+        ...Theme.typography.subtitle,
+        color: Theme.colors.text,
     },
     rejectBtnRedesign: {
         width: "100%",
-        paddingVertical: 15,
-        borderRadius: 20,
+        paddingVertical: 16,
+        borderRadius: Theme.radius.lg,
         alignItems: "center",
-        borderWidth: 1,
-        borderColor: "#C5A880"
+        borderWidth: 2,
+        borderColor: Theme.colors.border,
     },
     rejectBtnTextRedesign: {
-        color: "#C5A880",
-        fontWeight: "bold",
-        fontSize: 15
-    }
+        color: Theme.colors.text,
+        fontWeight: "700",
+        fontSize: 16,
+    },
+    dropdown: {
+        position: "absolute",
+        left: 0,
+        top: 50,
+        backgroundColor: Theme.colors.surface,
+        borderRadius: Theme.radius.lg,
+        padding: Theme.spacing.xs,
+        width: 180,
+        ...Theme.shadows.lg,
+        zIndex: 10000,
+        borderWidth: 1,
+        borderColor: Theme.colors.border,
+    },
+    dropdownItem: {
+        flexDirection: "row",
+        alignItems: "center",
+        paddingVertical: 12,
+        paddingHorizontal: Theme.spacing.sm,
+        borderRadius: Theme.radius.sm,
+    },
+    dropdownText: {
+        ...Theme.typography.body,
+        color: Theme.colors.text,
+        fontWeight: "500",
+    },
+    dropdownSeparator: {
+        height: 1,
+        backgroundColor: Theme.colors.border,
+        marginVertical: 4,
+    },
+    /* TARIK DANA STYLES */
+    withdrawModalOverlay: {
+        flex: 1,
+        backgroundColor: "rgba(0,0,0,0.5)",
+        justifyContent: "flex-end",
+    },
+    withdrawModalContent: {
+        backgroundColor: Theme.colors.surface,
+        borderTopLeftRadius: Theme.radius.xl,
+        borderTopRightRadius: Theme.radius.xl,
+        padding: Theme.spacing.xl,
+        alignItems: "center",
+        ...Theme.shadows.lg,
+    },
+    withdrawHandle: {
+        width: 48,
+        height: 6,
+        backgroundColor: Theme.colors.border,
+        borderRadius: 3,
+        marginBottom: Theme.spacing.xl,
+    },
+    withdrawTitle: {
+        ...Theme.typography.h2,
+        color: Theme.colors.text,
+        marginBottom: Theme.spacing.xl,
+    },
+    withdrawInputHeader: {
+        flexDirection: "row",
+        justifyContent: "space-between",
+        width: "100%",
+        marginBottom: Theme.spacing.sm,
+    },
+    withdrawLabel: {
+        ...Theme.typography.subtitle,
+        color: Theme.colors.text,
+    },
+    tarikSemuaText: {
+        ...Theme.typography.subtitle,
+        color: Theme.colors.primary,
+    },
+    withdrawInputContainer: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: Theme.colors.background,
+        borderRadius: Theme.radius.lg,
+        paddingHorizontal: Theme.spacing.lg,
+        paddingVertical: 14,
+        width: "100%",
+        marginBottom: Theme.spacing.xl,
+        borderWidth: 1,
+        borderColor: Theme.colors.border,
+    },
+    withdrawCurrency: {
+        ...Theme.typography.h2,
+        color: Theme.colors.text,
+        marginRight: Theme.spacing.xs,
+    },
+    withdrawInput: {
+        flex: 1,
+        ...Theme.typography.h2,
+        color: Theme.colors.text,
+    },
+    bankCard: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: Theme.colors.background,
+        borderRadius: Theme.radius.lg,
+        padding: Theme.spacing.md,
+        width: "100%",
+        marginBottom: Theme.spacing.xl,
+        borderWidth: 1,
+        borderColor: Theme.colors.border,
+    },
+    bankLogoCircle: {
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: Theme.colors.surface,
+        justifyContent: "center",
+        alignItems: "center",
+        marginRight: Theme.spacing.md,
+        ...Theme.shadows.sm,
+        borderWidth: 1,
+        borderColor: Theme.colors.border,
+    },
+    bankLogoText: {
+        fontSize: 14,
+        fontWeight: "900",
+        color: "#006699",
+    },
+    bankNameText: {
+        ...Theme.typography.subtitle,
+        color: Theme.colors.text,
+    },
+    bankOwnerText: {
+        ...Theme.typography.caption,
+        color: Theme.colors.textMuted,
+        marginTop: 2,
+    },
 });

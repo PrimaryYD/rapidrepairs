@@ -39,6 +39,7 @@ export default function SuccessScreen() {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
+                    "bypass-tunnel-reminder": "true"
                 },
                 body: JSON.stringify({
                     total: Number(total),
@@ -193,7 +194,7 @@ const styles = StyleSheet.create({
 
     container: {
         flex: 1,
-        backgroundColor: "#F6F2EA",
+        backgroundColor: Theme.colors.background,
         padding: 20
     },
 
@@ -217,14 +218,14 @@ const styles = StyleSheet.create({
     desc: {
         textAlign: "center",
         fontSize: 12,
-        color: "#666",
+        color: Theme.colors.textMuted,
         marginBottom: 10
     },
 
     selectedCard: {
         flexDirection: "row",
         alignItems: "center",
-        backgroundColor: "#fff",
+        backgroundColor: Theme.colors.surface,
         padding: 12,
         borderRadius: 12,
         marginTop: 10,
@@ -241,7 +242,7 @@ const styles = StyleSheet.create({
     },
 
     summaryBox: {
-        backgroundColor: "#fff",
+        backgroundColor: Theme.colors.surface,
         padding: 15,
         borderRadius: 15,
         marginTop: 15
@@ -268,11 +269,11 @@ const styles = StyleSheet.create({
     label: {
         marginTop: 15,
         marginBottom: 5,
-        color: "#666"
+        color: Theme.colors.textMuted
     },
 
     paymentBox: {
-        backgroundColor: "#fff",
+        backgroundColor: Theme.colors.surface,
         padding: 14,
         borderRadius: 12,
         flexDirection: "row",
@@ -286,7 +287,7 @@ const styles = StyleSheet.create({
     },
 
     button: {
-        backgroundColor: "#8B5E3C",
+        backgroundColor: Theme.colors.primary,
         padding: 14,
         borderRadius: 25,
         alignItems: "center",
@@ -301,7 +302,7 @@ const styles = StyleSheet.create({
     },
 
     modalBox: {
-        backgroundColor: "#fff",
+        backgroundColor: Theme.colors.surface,
         padding: 20,
         borderTopLeftRadius: 20,
         borderTopRightRadius: 20

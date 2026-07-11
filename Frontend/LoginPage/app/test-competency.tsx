@@ -9,6 +9,8 @@ import {
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import { Theme } from "../constants/theme";
+import AnimatedButton from "../components/ui/AnimatedButton";
 
 const QUESTIONS_DATA: any = {
     "AC": [
@@ -169,23 +171,24 @@ export default function TestCompetency() {
 
             <View style={styles.footer}>
                 {!isFinished ? (
-                    <TouchableOpacity
-                        style={[styles.nextBtn, selectedOption === null && styles.nextBtnDisabled]}
+                    <AnimatedButton
+                        title="Lanjutkan"
+                        icon={<Ionicons name="arrow-forward" size={18} color="#FFF" />}
                         disabled={selectedOption === null}
                         onPress={handleNext}
-                    >
-                        <Text style={styles.nextBtnText}>Lanjutkan</Text>
-                        <Ionicons name="arrow-forward" size={18} color="#FFF" />
-                    </TouchableOpacity>
+                        style={{ width: '100%' }}
+                    />
                 ) : (
                     <View style={styles.finishContainer}>
                         <View style={styles.resultBadge}>
                             <Text style={styles.resultTitle}>Skor Anda</Text>
                             <Text style={styles.resultScore}>{score}/100</Text>
                         </View>
-                        <TouchableOpacity style={styles.finishBtn} onPress={handleFinish}>
-                            <Text style={styles.finishBtnText}>Selesai & Lanjut Pendaftaran</Text>
-                        </TouchableOpacity>
+                        <AnimatedButton
+                            title="Selesai & Lanjut Pendaftaran"
+                            onPress={handleFinish}
+                            style={{ width: '100%' }}
+                        />
                     </View>
                 )}
             </View>
@@ -196,38 +199,37 @@ export default function TestCompetency() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: "#F6F2EA",
+        backgroundColor: Theme.colors.background,
     },
     header: {
         padding: 20,
-        backgroundColor: "#FFF",
+        backgroundColor: Theme.colors.surface,
         borderBottomWidth: 1,
-        borderBottomColor: "#EEE",
+        borderBottomColor: Theme.colors.border,
     },
     headerTitle: {
-        fontSize: 18,
-        fontWeight: "800",
-        color: "#333",
+        ...Theme.typography.h2,
+        color: Theme.colors.text,
     },
     headerSubtitle: {
         fontSize: 14,
-        color: "#777",
+        color: Theme.colors.textMuted,
         marginTop: 4,
     },
     progressContainer: {
         height: 6,
-        backgroundColor: "#EFEBE4",
+        backgroundColor: Theme.colors.border,
         width: "100%",
     },
     progressBar: {
         height: "100%",
-        backgroundColor: "#B3875E",
+        backgroundColor: Theme.colors.primary,
     },
     scrollContent: {
         padding: 20,
     },
     questionCard: {
-        backgroundColor: "#FFF",
+        backgroundColor: Theme.colors.surface,
         padding: 20,
         borderRadius: 16,
         marginBottom: 20,
@@ -238,9 +240,8 @@ const styles = StyleSheet.create({
         shadowRadius: 5,
     },
     questionText: {
-        fontSize: 17,
-        fontWeight: "700",
-        color: "#333",
+        ...Theme.typography.subtitle,
+        color: Theme.colors.text,
         lineHeight: 24,
     },
     optionsContainer: {
@@ -249,14 +250,14 @@ const styles = StyleSheet.create({
     optionItem: {
         flexDirection: "row",
         alignItems: "center",
-        backgroundColor: "#FFF",
+        backgroundColor: Theme.colors.surface,
         padding: 18,
         borderRadius: 14,
         borderWidth: 1.5,
         borderColor: "transparent",
     },
     optionSelected: {
-        borderColor: "#B3875E",
+        borderColor: Theme.colors.primary,
         backgroundColor: "#FDFBF8",
     },
     radio: {
@@ -264,38 +265,38 @@ const styles = StyleSheet.create({
         height: 22,
         borderRadius: 11,
         borderWidth: 2,
-        borderColor: "#DDD",
+        borderColor: Theme.colors.border,
         marginRight: 15,
         justifyContent: "center",
         alignItems: "center",
     },
     radioActive: {
-        borderColor: "#B3875E",
+        borderColor: Theme.colors.primary,
     },
     radioInner: {
         width: 12,
         height: 12,
         borderRadius: 6,
-        backgroundColor: "#B3875E",
+        backgroundColor: Theme.colors.primary,
     },
     optionText: {
         fontSize: 15,
-        color: "#555",
+        color: Theme.colors.textMuted,
         fontWeight: "500",
         flex: 1,
     },
     optionTextSelected: {
-        color: "#333",
+        color: Theme.colors.text,
         fontWeight: "700",
     },
     footer: {
         padding: 20,
-        backgroundColor: "#FFF",
+        backgroundColor: Theme.colors.surface,
         borderTopWidth: 1,
-        borderTopColor: "#EEE",
+        borderTopColor: Theme.colors.border,
     },
     nextBtn: {
-        backgroundColor: "#B3875E",
+        backgroundColor: Theme.colors.primary,
         paddingVertical: 16,
         borderRadius: 30,
         flexDirection: "row",
@@ -320,16 +321,16 @@ const styles = StyleSheet.create({
     },
     resultTitle: {
         fontSize: 14,
-        color: "#777",
+        color: Theme.colors.textMuted,
         fontWeight: "600",
     },
     resultScore: {
         fontSize: 36,
         fontWeight: "900",
-        color: "#B3875E",
+        color: Theme.colors.primary,
     },
     finishBtn: {
-        backgroundColor: "#B3875E",
+        backgroundColor: Theme.colors.primary,
         width: "100%",
         paddingVertical: 16,
         borderRadius: 30,

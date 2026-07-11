@@ -9,12 +9,17 @@ import {
     ActivityIndicator,
     Animated,
     Easing,
+    Alert,
+    TextInput,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
 import { db } from "./_firebaseConfig";
 import { Ionicons } from "@expo/vector-icons";
+import { Theme } from "../constants/theme";
+import { useCustomAlert } from "../components/ui/GlobalAlertProvider";
+import AnimatedButton from "../components/ui/AnimatedButton";
 
 export default function DoneScreen() {
     const router = useRouter();
@@ -26,8 +31,11 @@ export default function DoneScreen() {
     const [rating, setRating] = useState(0);
     const [selectedTags, setSelectedTags] = useState<string[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [showCustomReview, setShowCustomReview] = useState(false);
+    const [customReviewText, setCustomReviewText] = useState("");
 
-    const quickTags = ["Pelanggan Ramah", "Sesuai Titik Maps", "Responsif"];
+    const quickTags = ["Teknisi Cepat", "Kerja Rapi", "Responsif"];
+    const { showAlert } = useCustomAlert();
 
     // Success Animations
     const scaleAnim = useRef(new Animated.Value(0)).current;
@@ -93,9 +101,31 @@ export default function DoneScreen() {
         }
     };
 
-    const handleSubmitReview = () => {
-        // In a real app, save the review (rating & tags) to Firestore order / reviews collection
-        router.push("/review-success" as any);
+    const handleSubmitReview = async () => {
+        if (rating === 0) {
+            showAlert({ title: "Penilaian Diperlukan", message: "Mohon pilih jumlah bintang terlebih dahulu.", type: "warning" });
+            return;
+        }
+        setIsLoading(true);
+        try {
+            if (orderId) {
+                await updateDoc(doc(db, "orders", orderId as string), {
+                    techRating: rating,
+                    techReviewTags: selectedTags,
+                    techReviewComment: showCustomReview ? customReviewText : "",
+                    techRated: true
+                });
+            }
+            router.replace({
+                pathname: "/review-success",
+                params: { role: "user" }
+            } as any);
+        } catch (err) {
+            console.log("Error saving technician rating:", err);
+            showAlert({ title: "Kesalahan", message: "Gagal mengirim penilaian. Silakan coba lagi.", type: "error" });
+        } finally {
+            setIsLoading(false);
+        }
     };
 
     if (isLoading) {
@@ -204,12 +234,39 @@ export default function DoneScreen() {
                                 </TouchableOpacity>
                             );
                         })}
+                        {/* Lainnya button */}
+                        <TouchableOpacity
+                            style={[styles.tagPill, showCustomReview && styles.tagPillSelected]}
+                            onPress={() => setShowCustomReview(!showCustomReview)}
+                            activeOpacity={0.8}
+                        >
+                            <Text style={[styles.tagText, showCustomReview && styles.tagTextSelected]}>
+                                Lainnya
+                            </Text>
+                        </TouchableOpacity>
                     </View>
 
+                    {/* EDITABLE REVIEW COMMENT */}
+                    {showCustomReview && (
+                        <View style={styles.customReviewContainer}>
+                            <TextInput
+                                style={styles.customReviewInput}
+                                placeholder="Tulis kritik atau saran Anda di sini..."
+                                placeholderTextColor="#999"
+                                multiline
+                                numberOfLines={4}
+                                value={customReviewText}
+                                onChangeText={setCustomReviewText}
+                            />
+                        </View>
+                    )}
+
                     {/* SUBMIT BUTTON */}
-                    <TouchableOpacity style={styles.submitBtn} onPress={handleSubmitReview}>
-                        <Text style={styles.submitBtnText}>Kirim Penilaian</Text>
-                    </TouchableOpacity>
+                    <AnimatedButton
+                        title="Kirim Penilaian"
+                        onPress={handleSubmitReview}
+                        style={{ width: '100%' }}
+                    />
 
                 </View>
 
@@ -221,18 +278,18 @@ export default function DoneScreen() {
 const styles = StyleSheet.create({
     safeArea: {
         flex: 1,
-        backgroundColor: "#FAF6F0",
+        backgroundColor: Theme.colors.background,
     },
     loadingContainer: {
         flex: 1,
-        backgroundColor: "#FAF6F0",
+        backgroundColor: Theme.colors.background,
         justifyContent: "center",
         alignItems: "center",
     },
     loadingText: {
         marginTop: 15,
         fontSize: 14,
-        color: "#B3875E",
+        color: Theme.colors.primary,
         fontWeight: "600",
     },
     scrollContent: {
@@ -279,11 +336,11 @@ const styles = StyleSheet.create({
     title: {
         fontSize: 22,
         fontWeight: "900",
-        color: "#333",
+        color: Theme.colors.text,
         textAlign: "center",
     },
     feedbackCard: {
-        backgroundColor: "#fff",
+        backgroundColor: Theme.colors.surface,
         borderRadius: 30,
         width: "100%",
         paddingHorizontal: 20,
@@ -292,7 +349,7 @@ const styles = StyleSheet.create({
         alignItems: "center",
         marginTop: 45,
         borderWidth: 1.5,
-        borderColor: "#F0EFEB",
+        borderColor: Theme.colors.border,
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.05,
@@ -303,9 +360,9 @@ const styles = StyleSheet.create({
         width: 86,
         height: 86,
         borderRadius: 43,
-        backgroundColor: "#FAF6F0",
+        backgroundColor: Theme.colors.background,
         borderWidth: 4,
-        borderColor: "#fff",
+        borderColor: Theme.colors.surface,
         justifyContent: "center",
         alignItems: "center",
         position: "absolute",
@@ -324,24 +381,24 @@ const styles = StyleSheet.create({
     techName: {
         fontSize: 18,
         fontWeight: "800",
-        color: "#333",
+        color: Theme.colors.text,
     },
     techSpec: {
         fontSize: 12,
-        color: "#B3875E",
+        color: Theme.colors.primary,
         fontWeight: "600",
         marginTop: 4,
     },
     cardDivider: {
         height: 1,
-        backgroundColor: "#F2EBE5",
+        backgroundColor: Theme.colors.border,
         width: "100%",
         marginVertical: 20,
     },
     feedbackHeading: {
         fontSize: 14,
         fontWeight: "800",
-        color: "#333",
+        color: Theme.colors.text,
         marginBottom: 15,
     },
     starRow: {
@@ -354,31 +411,48 @@ const styles = StyleSheet.create({
         flexWrap: "wrap",
         justifyContent: "center",
         gap: 10,
-        marginBottom: 35,
+        marginBottom: 20,
+    },
+    customReviewContainer: {
+        width: "100%",
+        marginBottom: 20,
+    },
+    customReviewInput: {
+        width: "100%",
+        minHeight: 100,
+        backgroundColor: Theme.colors.background,
+        borderRadius: 16,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        fontSize: 14,
+        color: Theme.colors.text,
+        borderWidth: 1,
+        borderColor: Theme.colors.border,
+        textAlignVertical: "top",
     },
     tagPill: {
-        backgroundColor: "#fff",
+        backgroundColor: Theme.colors.surface,
         borderWidth: 1,
-        borderColor: "#EAE6DF",
+        borderColor: Theme.colors.border,
         paddingVertical: 10,
         paddingHorizontal: 16,
         borderRadius: 20,
     },
     tagPillSelected: {
-        backgroundColor: "#FAF6F0",
-        borderColor: "#B3875E",
+        backgroundColor: Theme.colors.background,
+        borderColor: Theme.colors.primary,
     },
     tagText: {
         fontSize: 12,
-        color: "#666",
+        color: Theme.colors.textMuted,
         fontWeight: "600",
     },
     tagTextSelected: {
-        color: "#B3875E",
+        color: Theme.colors.primary,
         fontWeight: "700",
     },
     submitBtn: {
-        backgroundColor: "#B3875E",
+        backgroundColor: Theme.colors.primary,
         width: "100%",
         paddingVertical: 16,
         borderRadius: 30,

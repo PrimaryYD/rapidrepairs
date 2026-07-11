@@ -2,8 +2,10 @@ import {
     View,
     Text,
     StyleSheet,
-    TouchableOpacity
+    TouchableOpacity,
+    Animated,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
 
 import { useEffect, useState, useRef } from "react";
 import * as Location from "expo-location";
@@ -15,13 +17,31 @@ import AcMapView from '../components/AcMapView';
 import { auth, db } from "./_firebaseConfig";
 import { collection, query, where, getDocs, addDoc, serverTimestamp } from "firebase/firestore";
 
-export default function Tracking() {
+import { Theme } from "../constants/theme";
+import { useCustomAlert } from "../components/ui/GlobalAlertProvider";
+import AnimatedButton from "../components/ui/AnimatedButton";
 
+export default function Tracking() {
     const router = useRouter();
+    const { showAlert } = useCustomAlert();
     const mapRef = useRef<any>(null);
 
     const [location, setLocation] = useState<any>(null);
     const [address, setAddress] = useState("");
+    const [loadingLocation, setLoadingLocation] = useState(true);
+    const [findingTech, setFindingTech] = useState(false);
+
+    const slideAnim = useRef(new Animated.Value(300)).current;
+
+    useEffect(() => {
+        if (location) {
+            Animated.spring(slideAnim, {
+                toValue: 0,
+                friction: 8,
+                useNativeDriver: true,
+            }).start();
+        }
+    }, [location]);
 
     /* ================= HAVERSINE ================= */
     const toRad = (value: number) => (value * Math.PI) / 180;
@@ -53,7 +73,12 @@ export default function Tracking() {
             try {
                 let { status } = await Location.requestForegroundPermissionsAsync();
                 if (status !== "granted") {
-                    alert("Izin lokasi diperlukan untuk menggunakan layanan ini.");
+                    setLoadingLocation(false);
+                    showAlert({
+                        title: "Izin Ditolak",
+                        message: "Izin lokasi diperlukan untuk menggunakan layanan ini.",
+                        type: "warning"
+                    });
                     return;
                 }
 
@@ -62,10 +87,15 @@ export default function Tracking() {
                 });
                 setLocation(loc.coords);
                 getAddressFromCoords(loc.coords.latitude, loc.coords.longitude);
+                setLoadingLocation(false);
             } catch (err) {
                 console.log("Location error:", err);
-                alert("Gagal mengambil lokasi. Pastikan GPS aktif.");
-                // Fallback to Jakarta if needed, or just let the user know
+                setLoadingLocation(false);
+                showAlert({
+                    title: "Gagal Mengambil Lokasi",
+                    message: "Gagal mengambil lokasi. Pastikan GPS aktif.",
+                    type: "error"
+                });
             }
         })();
     }, []);
@@ -93,6 +123,8 @@ export default function Tracking() {
         const user = auth.currentUser;
         if (!user || !location) return;
 
+        setFindingTech(true);
+
         try {
             // 🔥 Ambil Nama Customer dari Firestore
             const userSnap = await getDocs(query(collection(db, "users"), where("__name__", "==", user.uid)));
@@ -110,7 +142,12 @@ export default function Tracking() {
             const snapshot = await getDocs(q);
 
             if (snapshot.empty) {
-                alert("Tidak ada teknisi aktif");
+                setFindingTech(false);
+                showAlert({
+                    title: "Teknisi Tidak Ditemukan",
+                    message: "Saat ini tidak ada teknisi AC yang aktif di sekitar Anda.",
+                    type: "warning"
+                });
                 return;
             }
 
@@ -118,8 +155,10 @@ export default function Tracking() {
             let minDist = 999;
 
             snapshot.forEach((docSnap) => {
-                const data = docSnap.data();
+                // Mencegah customer mendapatkan pesanannya sendiri
+                if (docSnap.id === user.uid) return;
 
+                const data = docSnap.data();
                 const lat = data.coordinate?.lat;
                 const lng = data.coordinate?.lng;
 
@@ -143,7 +182,12 @@ export default function Tracking() {
             });
 
             if (!nearest) {
-                alert("Teknisi tidak ditemukan");
+                setFindingTech(false);
+                showAlert({
+                    title: "Teknisi Tidak Ditemukan",
+                    message: "Saat ini tidak ada teknisi AC yang aktif di sekitar Anda.",
+                    type: "warning"
+                });
                 return;
             }
 
@@ -162,6 +206,7 @@ export default function Tracking() {
             });
 
             console.log("✅ Order:", orderRef.id);
+            setFindingTech(false);
 
             router.push({
                 pathname: "/searching" as any,
@@ -173,20 +218,51 @@ export default function Tracking() {
 
         } catch (err) {
             console.log("❌ Error:", err);
+            setFindingTech(false);
+            showAlert({
+                title: "Terjadi Kesalahan",
+                message: "Gagal memproses pesanan Anda. Silakan coba lagi.",
+                type: "error"
+            });
         }
     };
 
     /* ================= UI ================= */
+    if (loadingLocation) {
+        return (
+            <View style={styles.loading}>
+                <Ionicons name="location" size={40} color={Theme.colors.primary} style={{ marginBottom: 16 }} />
+                <Text style={{ ...Theme.typography.body, color: Theme.colors.textMuted }}>Mencari lokasi Anda...</Text>
+            </View>
+        );
+    }
+
     if (!location) {
         return (
             <View style={styles.loading}>
-                <Text>Loading lokasi...</Text>
+                <Ionicons name="warning" size={40} color={Theme.colors.warning} style={{ marginBottom: 16 }} />
+                <Text style={{ ...Theme.typography.body, color: Theme.colors.text, textAlign: 'center' }}>
+                    Lokasi tidak ditemukan.{"\n"}Pastikan Anda telah memberikan izin lokasi.
+                </Text>
+                <AnimatedButton
+                    title="Kembali"
+                    onPress={() => router.back()}
+                    style={{ marginTop: 24, width: 200 }}
+                    variant="outline"
+                />
             </View>
         );
     }
 
     return (
         <View style={styles.container}>
+            {/* Header / Back Button Overlay */}
+            <View style={styles.headerOverlay}>
+                <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
+                    <Ionicons name="chevron-back" size={24} color={Theme.colors.text} />
+                </TouchableOpacity>
+                <Text style={styles.headerTitle}>Layanan AC</Text>
+            </View>
 
             <View style={{ flex: 1 }}>
                 <AcMapView
@@ -199,53 +275,103 @@ export default function Tracking() {
                 />
             </View>
 
-            <View style={styles.bottomCard}>
+            <Animated.View style={[styles.bottomCard, { transform: [{ translateY: slideAnim }] }]}>
                 <View style={styles.cardContent}>
-
+                    <View style={styles.cardIndicator} />
+                    
                     <Text style={styles.title}>Pesan Teknisi AC</Text>
+                    <Text style={styles.subtitle}>Tentukan lokasi perbaikan AC Anda</Text>
 
                     <Text style={styles.label}>Alamat Lengkap</Text>
                     <View style={styles.addressBox}>
-                        <Text>{address || "Mengambil lokasi..."}</Text>
+                        <Ionicons name="location" size={20} color={Theme.colors.primary} style={{ marginRight: 10 }} />
+                        <Text style={styles.addressText} numberOfLines={2}>
+                            {address || "Mengambil lokasi..."}
+                        </Text>
                     </View>
 
-                    <TouchableOpacity
-                        style={styles.orderBtn}
+                    <AnimatedButton
+                        title="Pesan Teknisi Sekarang"
                         onPress={findTechnician}
-                    >
-                        <Text style={styles.orderText}>
-                            Pesan Teknisi Sekarang
-                        </Text>
-                    </TouchableOpacity>
-
+                        isLoading={findingTech}
+                        style={styles.orderBtn}
+                        icon={<Ionicons name="build" size={20} color="white" />}
+                    />
                 </View>
-            </View>
-
+            </Animated.View>
         </View>
     );
 }
 
 const styles = StyleSheet.create({
-    container: { flex: 1 },
-    loading: { flex: 1, justifyContent: "center", alignItems: "center" },
+    container: { flex: 1, backgroundColor: Theme.colors.background },
+    loading: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: Theme.colors.background },
+    
+    headerOverlay: {
+        position: 'absolute',
+        top: 50,
+        left: 20,
+        right: 20,
+        flexDirection: 'row',
+        alignItems: 'center',
+        zIndex: 100,
+    },
+    backBtn: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: Theme.colors.surface,
+        justifyContent: 'center',
+        alignItems: 'center',
+        ...Theme.shadows.sm,
+    },
+    headerTitle: {
+        ...Theme.typography.h3,
+        marginLeft: Theme.spacing.md,
+        color: Theme.colors.text,
+        textShadowColor: 'rgba(255, 255, 255, 0.8)',
+        textShadowOffset: { width: 0, height: 1 },
+        textShadowRadius: 2,
+    },
+
     map: { flex: 1 },
-    webFallback: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#eee" },
+    webFallback: { flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: Theme.colors.inputBg },
+    
     bottomCard: { position: "absolute", bottom: 0, width: "100%" },
     cardContent: {
-        backgroundColor: "#F6F2EA",
-        borderTopLeftRadius: 20,
-        borderTopRightRadius: 20,
-        padding: 16
+        backgroundColor: Theme.colors.surface,
+        borderTopLeftRadius: Theme.radius.xl,
+        borderTopRightRadius: Theme.radius.xl,
+        padding: Theme.spacing.xl,
+        ...Theme.shadows.lg,
     },
-    title: { fontSize: 16, fontWeight: "600" },
-    label: { fontSize: 13, marginTop: 10 },
-    addressBox: { backgroundColor: "#fff", padding: 10, borderRadius: 10 },
+    cardIndicator: {
+        width: 40,
+        height: 4,
+        backgroundColor: Theme.colors.border,
+        borderRadius: 2,
+        alignSelf: 'center',
+        marginBottom: Theme.spacing.md,
+    },
+    title: { ...Theme.typography.h2, color: Theme.colors.text },
+    subtitle: { ...Theme.typography.body, color: Theme.colors.textMuted, marginBottom: Theme.spacing.lg },
+    
+    label: { ...Theme.typography.subtitle, color: Theme.colors.text, marginBottom: Theme.spacing.xs },
+    addressBox: { 
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: Theme.colors.inputBg, 
+        padding: Theme.spacing.md, 
+        borderRadius: Theme.radius.lg,
+        borderWidth: 1,
+        borderColor: Theme.colors.border,
+    },
+    addressText: {
+        flex: 1,
+        ...Theme.typography.body,
+        color: Theme.colors.text,
+    },
     orderBtn: {
-        backgroundColor: "#8B5E3C",
-        padding: 14,
-        borderRadius: 25,
-        alignItems: "center",
-        marginTop: 12
+        marginTop: Theme.spacing.xl,
     },
-    orderText: { color: "#fff", fontWeight: "600" }
 });

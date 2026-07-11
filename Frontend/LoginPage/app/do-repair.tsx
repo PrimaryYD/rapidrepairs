@@ -19,6 +19,9 @@ import { db } from "./_firebaseConfig";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { BASE_URL } from "../api";
+import { Theme } from "../constants/theme";
+import { useCustomAlert } from "../components/ui/GlobalAlertProvider";
+import AnimatedButton from "../components/ui/AnimatedButton";
 
 type ImageType = {
     uri: string;
@@ -34,6 +37,7 @@ export default function DoRepairScreen() {
     const [isConfirmVisible, setIsConfirmVisible] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const [isCompleted, setIsCompleted] = useState(false);
+    const { showAlert } = useCustomAlert();
 
     // Animations for Success State
     const scaleAnim = useRef(new Animated.Value(0)).current;
@@ -100,13 +104,13 @@ export default function DoRepairScreen() {
 
     const pickImage = async (serviceName: string) => {
         if (completionImages[serviceName]?.length >= 5) {
-            Alert.alert("Limit Tercapai", "Maksimal 5 foto per layanan.");
+            showAlert({ title: "Limit Tercapai", message: "Maksimal 5 foto per layanan.", type: "warning" });
             return;
         }
 
         const { status } = await ImagePicker.requestCameraPermissionsAsync();
         if (status !== "granted") {
-            Alert.alert("Izin Kamera Diperlukan", "Aplikasi membutuhkan izin kamera untuk mengambil foto bukti.");
+            showAlert({ title: "Izin Diperlukan", message: "Aplikasi membutuhkan izin kamera untuk mengambil foto bukti.", type: "warning" });
             return;
         }
 
@@ -176,6 +180,7 @@ export default function DoRepairScreen() {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
+                    "bypass-tunnel-reminder": "true",
                 },
                 body: JSON.stringify({
                     orderId,
@@ -191,7 +196,7 @@ export default function DoRepairScreen() {
             setIsCompleted(true);
         } catch (error: any) {
             console.log("Error uploading completion photos:", error);
-            Alert.alert("Kesalahan", error.message || "Gagal mengunggah foto hasil pekerjaan. Silakan coba lagi.");
+            showAlert({ title: "Kesalahan", message: error.message || "Gagal mengunggah foto hasil pekerjaan. Silakan coba lagi.", type: "error" });
         } finally {
             setIsUploading(false);
         }
@@ -275,9 +280,11 @@ export default function DoRepairScreen() {
 
                     {/* FOOTER BUTTON */}
                     <View style={styles.footer}>
-                        <TouchableOpacity style={styles.primaryBtn} onPress={handleSelesaikanPesanan}>
-                            <Text style={styles.primaryBtnText}>Selesaikan Pesanan</Text>
-                        </TouchableOpacity>
+                        <AnimatedButton
+                            title="Selesaikan Pesanan"
+                            onPress={handleSelesaikanPesanan}
+                            style={{ width: '100%' }}
+                        />
                     </View>
 
                     {/* CONFIRMATION POPUP MODAL */}
@@ -298,10 +305,11 @@ export default function DoRepairScreen() {
                                     Apakah Anda yakin perbaikan telah selesai dan foto bukti sudah benar? Sistem akan memverifikasi foto Anda. Manipulasi atau kecurangan akan mengakibatkan <Text style={{ color: "#D32F2F", fontWeight: "700" }}>PENAHANAN DANA</Text> dan sanksi pemutusan mitra.
                                 </Text>
 
-                                <TouchableOpacity style={styles.modalConfirmBtn} onPress={handleConfirmSelesai}>
-                                    <Text style={styles.modalConfirmText}>Ya, Selesaikan Pekerjaan</Text>
-                                </TouchableOpacity>
-
+                                <AnimatedButton
+                                    title="Ya, Selesaikan Pekerjaan"
+                                    onPress={handleConfirmSelesai}
+                                    style={{ width: '100%', marginBottom: 10 }}
+                                />
                                 <TouchableOpacity style={styles.modalCancelBtn} onPress={() => setIsConfirmVisible(false)}>
                                     <Text style={styles.modalCancelText}>Kembali, Cek Lagi</Text>
                                 </TouchableOpacity>
@@ -351,7 +359,7 @@ export default function DoRepairScreen() {
                     <Text style={styles.successTitle}>Pekerjaan Selesai!</Text>
                     
                     <Text style={styles.successDesc}>
-                        Terima kasih. Dana sebesar <Text style={{ fontWeight: "700", color: "#333" }}>Rp {totalBill.toLocaleString("id-ID")}</Text> sedang diproses dan ditahan oleh sistem. Dana akan masuk ke dompet Anda setelah verifikasi foto bukti selesai.
+                        Terima kasih. Dana sebesar <Text style={{ fontWeight: "700", color: Theme.colors.text }}>Rp {totalBill.toLocaleString("id-ID")}</Text> sedang diproses dan ditahan oleh sistem. Dana akan masuk ke dompet Anda setelah verifikasi foto bukti selesai.
                     </Text>
 
                     <View style={styles.statusBadgeRow}>
@@ -361,16 +369,16 @@ export default function DoRepairScreen() {
 
                     {/* ACTION BUTTONS */}
                     <View style={styles.successFooter}>
-                        <TouchableOpacity 
-                            style={styles.successPrimaryBtn} 
+                        <AnimatedButton
+                            title="Berikan Penilaian kepada Pengguna"
                             onPress={() => {
-                                Alert.alert("Penilaian", "Terima kasih telah memberikan penilaian!");
-                                router.replace("/home-tech" as any);
+                                router.replace({
+                                    pathname: "/rate-user",
+                                    params: { orderId: orderId }
+                                } as any);
                             }}
-                        >
-                            <Text style={styles.successPrimaryText}>Berikan Penilaian kepada Pengguna</Text>
-                        </TouchableOpacity>
-
+                            style={{ width: '100%', marginBottom: 12 }}
+                        />
                         <TouchableOpacity 
                             style={styles.successSecondaryBtn} 
                             onPress={() => router.replace("/home-tech" as any)}
@@ -387,23 +395,23 @@ export default function DoRepairScreen() {
 const styles = StyleSheet.create({
     safeArea: {
         flex: 1,
-        backgroundColor: "#FAF6F0",
+        backgroundColor: Theme.colors.background,
     },
     loadingContainer: {
         flex: 1,
-        backgroundColor: "#FAF6F0",
+        backgroundColor: Theme.colors.background,
         justifyContent: "center",
         alignItems: "center",
     },
     loadingText: {
         marginTop: 15,
         fontSize: 14,
-        color: "#B3875E",
+        color: Theme.colors.primary,
         fontWeight: "600",
     },
     overlayLoading: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: "rgba(250, 246, 240, 0.9)",
+        backgroundColor: Theme.colors.background,
         zIndex: 9999,
         justifyContent: "center",
         alignItems: "center",
@@ -413,20 +421,20 @@ const styles = StyleSheet.create({
         marginTop: 20,
         fontSize: 15,
         fontWeight: "700",
-        color: "#B3875E",
+        color: Theme.colors.primary,
         textAlign: "center",
     },
     header: {
         paddingVertical: 20,
         alignItems: "center",
-        backgroundColor: "#fff",
+        backgroundColor: Theme.colors.surface,
         borderBottomWidth: 1,
         borderBottomColor: "#EFEBE4",
     },
     headerTitle: {
         fontSize: 18,
         fontWeight: "700",
-        color: "#333",
+        color: Theme.colors.text,
     },
     scrollContent: {
         padding: 20,
@@ -450,12 +458,12 @@ const styles = StyleSheet.create({
         lineHeight: 18,
     },
     serviceCard: {
-        backgroundColor: "#fff",
+        backgroundColor: Theme.colors.surface,
         borderRadius: 20,
         padding: 20,
         marginBottom: 20,
         borderWidth: 1,
-        borderColor: "#EFEBE4",
+        borderColor: Theme.colors.border,
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.05,
@@ -471,7 +479,7 @@ const styles = StyleSheet.create({
     serviceName: {
         fontSize: 16,
         fontWeight: "700",
-        color: "#333",
+        color: Theme.colors.text,
         flex: 1,
         marginRight: 10,
     },
@@ -491,10 +499,10 @@ const styles = StyleSheet.create({
     uploadBox: {
         width: "100%",
         height: 140,
-        backgroundColor: "#FAF6F0",
+        backgroundColor: Theme.colors.background,
         borderRadius: 15,
         borderWidth: 1,
-        borderColor: "#D2C4B7",
+        borderColor: Theme.colors.border,
         borderStyle: "dashed",
         justifyContent: "center",
         alignItems: "center",
@@ -502,14 +510,14 @@ const styles = StyleSheet.create({
     },
     uploadBoxText: {
         fontSize: 13,
-        color: "#B3875E",
+        color: Theme.colors.primary,
         fontWeight: "700",
         marginTop: 10,
         textAlign: "center",
     },
     photoCount: {
         fontSize: 11,
-        color: "#999",
+        color: Theme.colors.textMuted,
         marginTop: 5,
     },
     imageGrid: {
@@ -547,7 +555,7 @@ const styles = StyleSheet.create({
         bottom: 0,
         left: 0,
         right: 0,
-        backgroundColor: "#fff",
+        backgroundColor: Theme.colors.surface,
         padding: 20,
         paddingBottom: 30,
         borderTopLeftRadius: 30,
@@ -559,7 +567,7 @@ const styles = StyleSheet.create({
         elevation: 10,
     },
     primaryBtn: {
-        backgroundColor: "#B3875E",
+        backgroundColor: Theme.colors.primary,
         paddingVertical: 16,
         borderRadius: 30,
         alignItems: "center",
@@ -579,7 +587,7 @@ const styles = StyleSheet.create({
         padding: 24,
     },
     modalCard: {
-        backgroundColor: "#fff",
+        backgroundColor: Theme.colors.surface,
         borderRadius: 24,
         padding: 24,
         width: "100%",
@@ -597,18 +605,18 @@ const styles = StyleSheet.create({
     modalTitle: {
         fontSize: 20,
         fontWeight: "800",
-        color: "#333",
+        color: Theme.colors.text,
         marginBottom: 12,
     },
     modalDesc: {
         fontSize: 13,
-        color: "#666",
+        color: Theme.colors.textMuted,
         textAlign: "center",
         lineHeight: 20,
         marginBottom: 24,
     },
     modalConfirmBtn: {
-        backgroundColor: "#B3875E",
+        backgroundColor: Theme.colors.primary,
         width: "100%",
         paddingVertical: 15,
         borderRadius: 30,
@@ -626,10 +634,10 @@ const styles = StyleSheet.create({
         borderRadius: 30,
         alignItems: "center",
         borderWidth: 1.5,
-        borderColor: "#B3875E",
+        borderColor: Theme.colors.primary,
     },
     modalCancelText: {
-        color: "#B3875E",
+        color: Theme.colors.primary,
         fontSize: 15,
         fontWeight: "700",
     },
@@ -640,7 +648,7 @@ const styles = StyleSheet.create({
         justifyContent: "center",
         alignItems: "center",
         paddingHorizontal: 30,
-        backgroundColor: "#FAF6F0",
+        backgroundColor: Theme.colors.background,
     },
     pulseContainer: {
         justifyContent: "center",
@@ -676,13 +684,13 @@ const styles = StyleSheet.create({
     successTitle: {
         fontSize: 24,
         fontWeight: "900",
-        color: "#333",
+        color: Theme.colors.text,
         textAlign: "center",
         marginBottom: 15,
     },
     successDesc: {
         fontSize: 13,
-        color: "#777",
+        color: Theme.colors.textMuted,
         textAlign: "center",
         lineHeight: 22,
         marginBottom: 25,
@@ -716,7 +724,7 @@ const styles = StyleSheet.create({
         gap: 12,
     },
     successPrimaryBtn: {
-        backgroundColor: "#B3875E",
+        backgroundColor: Theme.colors.primary,
         paddingVertical: 16,
         borderRadius: 30,
         alignItems: "center",
@@ -727,15 +735,15 @@ const styles = StyleSheet.create({
         fontWeight: "700",
     },
     successSecondaryBtn: {
-        backgroundColor: "#fff",
+        backgroundColor: Theme.colors.surface,
         borderWidth: 1.5,
-        borderColor: "#B3875E",
+        borderColor: Theme.colors.primary,
         paddingVertical: 16,
         borderRadius: 30,
         alignItems: "center",
     },
     successSecondaryText: {
-        color: "#B3875E",
+        color: Theme.colors.primary,
         fontSize: 15,
         fontWeight: "700",
     },

@@ -1,7 +1,9 @@
-import { View, Text, TouchableOpacity, Image, StyleSheet, Animated, Dimensions, ScrollView } from "react-native";
+import { View, Text, StyleSheet, Animated, Dimensions, ScrollView, Image } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { useState, useEffect, useRef } from "react";
+import { Theme } from "../constants/theme";
+import AnimatedButton from "../components/ui/AnimatedButton";
 
 const { width } = Dimensions.get("window");
 const IMAGES = [
@@ -15,41 +17,43 @@ export default function WelcomeWeb() {
     const router = useRouter();
     const [activeIndex, setActiveIndex] = useState(0);
     const slideAnim = useRef(new Animated.Value(0)).current;
+    const fadeAnim = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
+        // Initial fade in for content
+        Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: 800,
+            useNativeDriver: true,
+        }).start();
+
         const interval = setInterval(() => {
             const nextIndex = (activeIndex + 1) % IMAGES.length;
 
-            // Slide out to the left
             Animated.timing(slideAnim, {
-                toValue: -1, // Normalized movement
+                toValue: -1,
                 duration: 600,
                 useNativeDriver: true,
             }).start(() => {
-                // Instantly teleport back to the right but keep it hidden
                 setActiveIndex(nextIndex);
                 slideAnim.setValue(1);
 
-                // Slide in from the right
                 Animated.spring(slideAnim, {
                     toValue: 0,
                     friction: 8,
                     useNativeDriver: true,
                 }).start();
             });
-        }, 2500); // 2 seconds + some transition time
+        }, 3000);
 
         return () => clearInterval(interval);
     }, [activeIndex]);
 
     return (
-        <SafeAreaView style={{ flex: 1 }}>
-            <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
-                <View style={styles.screen}>
-
-                    {/* Main Content (No Box) */}
+        <SafeAreaView style={styles.safeArea}>
+            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                <Animated.View style={[styles.screen, { opacity: fadeAnim }]}>
                     <View style={styles.content}>
-                        {/* Logo */}
                         <Image
                             source={require("../assets/Logo/2.png")}
                             style={styles.logo}
@@ -65,7 +69,7 @@ export default function WelcomeWeb() {
                                         transform: [{
                                             translateX: slideAnim.interpolate({
                                                 inputRange: [-1, 0, 1],
-                                                outputRange: [-400, 0, 400], // Maps normalized to pixels
+                                                outputRange: [-width, 0, width],
                                             })
                                         }]
                                     }
@@ -74,7 +78,6 @@ export default function WelcomeWeb() {
                             />
                         </View>
 
-                        {/* Pagination Dots */}
                         <View style={styles.dotsContainer}>
                             {IMAGES.map((_, i) => (
                                 <View
@@ -89,146 +92,105 @@ export default function WelcomeWeb() {
 
                         <View style={styles.textContainer}>
                             <Text style={styles.title}>
-                                Selamat datang di Rapid Repairs!
+                                Selamat Datang di Rapid Repairs!
                             </Text>
-
                             <Text style={styles.subtitle}>
-                                Solusi instan untuk setiap drama kerusakan di rumahmu.
+                                Solusi instan untuk setiap keluhan dan kerusakan di rumahmu.
                             </Text>
                         </View>
 
                         <View style={styles.buttonContainer}>
-                            <TouchableOpacity
-                                style={styles.primaryButton}
+                            <AnimatedButton
+                                title="Masuk"
                                 onPress={() => router.push("/login" as any)}
-                            >
-                                <Text style={styles.primaryText}>Login</Text>
-                            </TouchableOpacity>
-                        <TouchableOpacity
-                            style={styles.secondaryButton}
-                            onPress={() => router.push("/register" as any)}
-                        >
-                            <Text style={styles.secondaryText}>Sign Up</Text>
-                        </TouchableOpacity>
+                                style={styles.primaryButton}
+                            />
+                            <AnimatedButton
+                                title="Daftar Baru"
+                                onPress={() => router.push("/select-role" as any)}
+                                variant="outline"
+                            />
                         </View>
                     </View>
-                </View>
+                </Animated.View>
             </ScrollView>
         </SafeAreaView>
     );
 }
 
 const styles = StyleSheet.create({
-
+    safeArea: {
+        flex: 1,
+        backgroundColor: Theme.colors.background,
+    },
+    scrollContent: {
+        flexGrow: 1,
+    },
     screen: {
         flex: 1,
-        backgroundColor: "white",
         alignItems: "center",
         justifyContent: "center",
-        padding: 40,
+        paddingHorizontal: Theme.spacing.lg,
+        paddingVertical: Theme.spacing.xxl,
     },
-
     content: {
         width: "100%",
-        maxWidth: 600,
+        maxWidth: 400,
         alignItems: "center",
-        marginTop: -60, // Slight adjustment for balance
     },
-
     logo: {
-        width: 140,
-        height: 140,
-        marginBottom: 30, // Brought it closer to the image
+        width: 120,
+        height: 120,
+        marginBottom: Theme.spacing.xl,
     },
-
     sliderContainer: {
-        width: 380,
-        height: 320,
-        overflow: "hidden", // Important for "off screen" effect
+        width: '100%',
+        height: 280,
+        overflow: "hidden",
         alignItems: "center",
         justifyContent: "center",
     },
-
     image: {
-        width: 320,
-        height: 320,
+        width: '100%',
+        height: '100%',
     },
-
     dotsContainer: {
         flexDirection: "row",
-        marginBottom: 30,
-        marginTop: 10,
+        marginVertical: Theme.spacing.lg,
     },
-
     dot: {
-        width: 10,
-        height: 10,
-        borderRadius: 5,
-        backgroundColor: "#E0E0E0",
-        marginHorizontal: 5,
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        backgroundColor: Theme.colors.border,
+        marginHorizontal: 4,
     },
-
     activeDot: {
-        backgroundColor: "#B3875E",
+        width: 24,
+        backgroundColor: Theme.colors.primary,
     },
-
     textContainer: {
         alignItems: "center",
-        marginBottom: 40,
+        marginBottom: Theme.spacing.xl,
     },
-
     title: {
-        fontSize: 18,
-        fontWeight: "800",
-        marginBottom: 4, // Closer to subtitle
+        ...Theme.typography.h2,
         textAlign: "center",
-        color: "#000",
+        marginBottom: Theme.spacing.sm,
+        color: Theme.colors.primaryDark,
     },
-
     subtitle: {
-        fontSize: 18,
-        color: "#555",
+        ...Theme.typography.body,
+        color: Theme.colors.textMuted,
         textAlign: "center",
-        lineHeight: 26,
-        maxWidth: 450,
+        lineHeight: 22,
+        paddingHorizontal: Theme.spacing.md,
     },
-
     buttonContainer: {
         width: "100%",
-        maxWidth: 380,
+        gap: Theme.spacing.md,
     },
-
     primaryButton: {
-        width: "100%",
-        backgroundColor: "#B3875E",
-        paddingVertical: 18,
-        borderRadius: 35,
-        alignItems: "center",
-        marginBottom: 20,
-        shadowColor: "#B3875E",
-        shadowOpacity: 0.1,
-        shadowRadius: 5,
-        elevation: 3,
-    },
-
-    primaryText: {
-        color: "white",
-        fontWeight: "700",
-        fontSize: 18,
-    },
-
-    secondaryButton: {
-        width: "100%",
-        borderWidth: 2,
-        borderColor: "#B3875E",
-        paddingVertical: 18,
-        borderRadius: 35,
-        alignItems: "center",
-    },
-
-    secondaryText: {
-        color: "#B3875E",
-        fontWeight: "700",
-        fontSize: 18,
+        marginBottom: Theme.spacing.sm,
     },
 });

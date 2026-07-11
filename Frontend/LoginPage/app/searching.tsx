@@ -16,27 +16,37 @@ import { Ionicons } from "@expo/vector-icons";
 
 // 🔥 FIREBASE
 import { db } from "./_firebaseConfig";
-import { doc, onSnapshot } from "firebase/firestore";
+import { doc, onSnapshot, updateDoc } from "firebase/firestore";
+
+import { Theme } from "../constants/theme";
+import { useCustomAlert } from "../components/ui/GlobalAlertProvider";
+import AnimatedButton from "../components/ui/AnimatedButton";
 
 export default function SearchingScreen() {
-
     const router = useRouter();
+    const { showAlert } = useCustomAlert();
 
     const [showModal, setShowModal] = useState(false);
     const [selected, setSelected] = useState("");
 
     const { orderId } = useLocalSearchParams();
 
-    /* 🔥 PULSE ANIMATION */
+    /* 🔥 ANIMATIONS */
     const pulseAnim = useRef(new Animated.Value(0)).current;
+    const fadeAnim = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
+        Animated.timing(fadeAnim, {
+            toValue: 1,
+            duration: 800,
+            useNativeDriver: true,
+        }).start();
 
         // 🔁 LOOP ANIMATION
         Animated.loop(
             Animated.timing(pulseAnim, {
                 toValue: 1,
-                duration: 1500,
+                duration: 2000,
                 easing: Easing.out(Easing.ease),
                 useNativeDriver: true,
             })
@@ -55,6 +65,13 @@ export default function SearchingScreen() {
                                 pathname: "/found" as any,
                                 params: { orderId }
                             });
+                        } else if (data.status === "rejected") {
+                            showAlert({
+                                title: "Pesanan Ditolak",
+                                message: "Teknisi menolak pesanan Anda. Silakan cari teknisi lain.",
+                                type: "warning"
+                            });
+                            router.replace("/ac-services" as any);
                         }
                     }
                 },
@@ -64,7 +81,6 @@ export default function SearchingScreen() {
             );
             return () => unsub();
         }
-
     }, [orderId]);
 
     const reasons = [
@@ -76,13 +92,12 @@ export default function SearchingScreen() {
     ];
 
     return (
-        <SafeAreaView style={{ flex: 1 }}>
-            <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
-                <View style={styles.container}>
-
+        <SafeAreaView style={styles.safeArea}>
+            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                <Animated.View style={[styles.container, { opacity: fadeAnim }]}>
+                    
                     {/* 🔥 PULSE WRAPPER */}
                     <View style={styles.pulseContainer}>
-
                         {/* PULSE */}
                         <Animated.View
                             style={[
@@ -98,7 +113,7 @@ export default function SearchingScreen() {
                                     ],
                                     opacity: pulseAnim.interpolate({
                                         inputRange: [0, 1],
-                                        outputRange: [0.4, 0]
+                                        outputRange: [0.6, 0]
                                     })
                                 }
                             ]}
@@ -108,27 +123,25 @@ export default function SearchingScreen() {
                         <View style={styles.circleBig}>
                             <View style={styles.circleMid}>
                                 <View style={styles.circleSmall}>
-                                    <Ionicons name="hammer-outline" size={24} color="#8B5E3C" />
+                                    <Ionicons name="build" size={32} color={Theme.colors.primary} />
                                 </View>
                             </View>
                         </View>
-
                     </View>
 
                     <Text style={styles.title}>Mencari Teknisi Terbaik</Text>
-
                     <Text style={styles.desc}>
                         Sedang mencocokkan Anda dengan{"\n"}teknisi terdekat untuk perbaikan cepat...
                     </Text>
 
                     <View style={styles.btnSearching}>
                         <Animated.View style={{ transform: [{ rotate: pulseAnim.interpolate({ inputRange: [0, 1], outputRange: ["0deg", "360deg"] }) }] }}>
-                            <Ionicons name="reload" size={16} color="#8B5E3C" />
+                            <Ionicons name="reload" size={18} color={Theme.colors.primary} />
                         </Animated.View>
                         <Text style={styles.btnSearchingText}>Mencari Teknisi...</Text>
                     </View>
 
-                    <TouchableOpacity onPress={() => setShowModal(true)}>
+                    <TouchableOpacity style={styles.cancelBtn} onPress={() => setShowModal(true)}>
                         <Text style={styles.cancelText}>Batalkan Pencarian</Text>
                     </TouchableOpacity>
 
@@ -139,199 +152,242 @@ export default function SearchingScreen() {
                         animationType="slide"
                     >
                         <View style={styles.modalOverlay}>
-
                             <View style={styles.modalContent}>
-
+                                <View style={styles.modalIndicator} />
                                 <Text style={styles.modalTitle}>Alasan Pembatalan</Text>
+                                <Text style={styles.modalSubtitle}>Beritahu kami alasan Anda membatalkan pencarian</Text>
 
-                                {reasons.map((item, index) => (
-                                    <TouchableOpacity
-                                        key={index}
-                                        style={styles.option}
-                                        onPress={() => setSelected(item)}
-                                    >
-                                        <View style={[
-                                            styles.radio,
-                                            selected === item && styles.radioActive
-                                        ]} />
+                                <View style={styles.optionsContainer}>
+                                    {reasons.map((item, index) => (
+                                        <TouchableOpacity
+                                            key={index}
+                                            style={[styles.option, selected === item && styles.optionSelected]}
+                                            onPress={() => setSelected(item)}
+                                        >
+                                            <View style={[
+                                                styles.radio,
+                                                selected === item && styles.radioActive
+                                            ]}>
+                                                {selected === item && <View style={styles.radioInner} />}
+                                            </View>
+                                            <Text style={[styles.optionText, selected === item && styles.optionTextSelected]}>{item}</Text>
+                                        </TouchableOpacity>
+                                    ))}
+                                </View>
 
-                                        <Text style={styles.optionText}>{item}</Text>
-                                    </TouchableOpacity>
-                                ))}
-
-                                <TouchableOpacity
-                                    style={styles.confirmBtn}
-                                    onPress={() => {
+                                <AnimatedButton
+                                    title="Batalkan Pesanan"
+                                    onPress={async () => {
+                                        if (!selected) {
+                                            showAlert({ title: "Pilih Alasan", message: "Silakan pilih alasan pembatalan terlebih dahulu.", type: "warning" });
+                                            return;
+                                        }
                                         setShowModal(false);
+                                        if (orderId) {
+                                            try {
+                                                await updateDoc(doc(db, "orders", orderId as string), {
+                                                    status: "cancelled",
+                                                    cancelReason: selected
+                                                });
+                                            } catch (e) {
+                                                console.error("Error cancelling order:", e);
+                                            }
+                                        }
                                         router.replace("/ac-services" as any);
                                     }}
-                                >
-                                    <Text style={{ color: "#fff", fontWeight: "600" }}>
-                                        Konfirmasi Batal
-                                    </Text>
-                                </TouchableOpacity>
-
+                                    style={styles.confirmBtn}
+                                />
+                                
+                                <AnimatedButton
+                                    title="Kembali Menunggu"
+                                    onPress={() => setShowModal(false)}
+                                    variant="outline"
+                                    style={{ marginTop: Theme.spacing.sm }}
+                                />
                             </View>
-
                         </View>
                     </Modal>
 
-                </View>
+                </Animated.View>
             </ScrollView>
         </SafeAreaView>
     );
 }
 
 const styles = StyleSheet.create({
-
+    safeArea: {
+        flex: 1,
+        backgroundColor: Theme.colors.background,
+    },
+    scrollContent: {
+        flexGrow: 1,
+    },
     container: {
         flex: 1,
         justifyContent: "center",
         alignItems: "center",
-        backgroundColor: "#FDFBF7", // Background lebih terang
-        paddingHorizontal: 40
+        paddingHorizontal: Theme.spacing.xl,
     },
 
     /* 🔥 PULSE */
     pulseContainer: {
         justifyContent: "center",
         alignItems: "center",
-        marginBottom: 40
+        marginBottom: 60,
+        marginTop: 40,
     },
-
     pulse: {
         position: "absolute",
-        width: 140,
-        height: 140,
-        borderRadius: 70,
-        backgroundColor: "#E8DED3"
+        width: 160,
+        height: 160,
+        borderRadius: 80,
+        backgroundColor: Theme.colors.primaryLight + '40', // 40 hex opacity
     },
-
     circleBig: {
-        width: 140,
-        height: 140,
-        borderRadius: 70,
-        backgroundColor: "#F2E9DE",
+        width: 160,
+        height: 160,
+        borderRadius: 80,
+        backgroundColor: Theme.colors.primaryLight + '20',
         justifyContent: "center",
         alignItems: "center",
-        elevation: 1
     },
-
     circleMid: {
-        width: 100,
-        height: 100,
-        borderRadius: 50,
-        backgroundColor: "#EDE0D1",
-        justifyContent: "center",
-        alignItems: "center"
-    },
-
-    circleSmall: {
-        width: 60,
-        height: 60,
-        borderRadius: 30,
-        backgroundColor: "#fff",
+        width: 120,
+        height: 120,
+        borderRadius: 60,
+        backgroundColor: Theme.colors.primaryLight,
         justifyContent: "center",
         alignItems: "center",
-        elevation: 3
+    },
+    circleSmall: {
+        width: 70,
+        height: 70,
+        borderRadius: 35,
+        backgroundColor: Theme.colors.surface,
+        justifyContent: "center",
+        alignItems: "center",
+        ...Theme.shadows.md,
     },
 
     title: {
-        fontSize: 22,
-        fontWeight: "bold",
-        color: "#3B2E2E",
-        textAlign: "center"
-    },
-
-    desc: {
-        fontSize: 13,
-        color: "#888",
+        ...Theme.typography.h2,
+        color: Theme.colors.text,
         textAlign: "center",
-        marginTop: 15,
-        lineHeight: 20
+        marginBottom: Theme.spacing.sm,
+    },
+    desc: {
+        ...Theme.typography.body,
+        color: Theme.colors.textMuted,
+        textAlign: "center",
+        lineHeight: 22,
+        marginBottom: Theme.spacing.xxl,
     },
 
     btnSearching: {
         flexDirection: "row",
         alignItems: "center",
-        gap: 10,
-        backgroundColor: "#E8DED3",
-        paddingVertical: 15,
-        paddingHorizontal: 40,
-        borderRadius: 30,
-        marginTop: 60
+        justifyContent: 'center',
+        gap: Theme.spacing.sm,
+        backgroundColor: Theme.colors.primaryLight + '30',
+        paddingVertical: Theme.spacing.md,
+        paddingHorizontal: Theme.spacing.xl,
+        borderRadius: Theme.radius.full,
+        marginBottom: Theme.spacing.xl,
+        width: '100%',
+        maxWidth: 250,
     },
-
     btnSearchingText: {
-        color: "#8B5E3C",
-        fontWeight: "bold",
-        fontSize: 15
+        ...Theme.typography.subtitle,
+        color: Theme.colors.primaryDark,
     },
 
+    cancelBtn: {
+        padding: Theme.spacing.sm,
+    },
     cancelText: {
-        marginTop: 20,
-        color: "#C5A880",
+        ...Theme.typography.body,
+        color: Theme.colors.danger,
         fontWeight: "600",
-        textDecorationLine: "none"
     },
 
     /* MODAL */
     modalOverlay: {
         flex: 1,
-        backgroundColor: "rgba(0,0,0,0.5)",
-        justifyContent: "flex-end"
+        backgroundColor: "rgba(0,0,0,0.4)",
+        justifyContent: "flex-end",
     },
-
     modalContent: {
-        backgroundColor: "#fff",
-        borderTopLeftRadius: 30,
-        borderTopRightRadius: 30,
-        padding: 25,
-        elevation: 20
+        backgroundColor: Theme.colors.surface,
+        borderTopLeftRadius: Theme.radius.xl,
+        borderTopRightRadius: Theme.radius.xl,
+        padding: Theme.spacing.xl,
+        ...Theme.shadows.lg,
     },
-
+    modalIndicator: {
+        width: 40,
+        height: 4,
+        backgroundColor: Theme.colors.border,
+        borderRadius: 2,
+        alignSelf: 'center',
+        marginBottom: Theme.spacing.lg,
+    },
     modalTitle: {
-        fontSize: 18,
-        fontWeight: "bold",
-        color: "#333",
-        marginBottom: 20,
-        textAlign: "center"
+        ...Theme.typography.h3,
+        color: Theme.colors.text,
+        textAlign: "center",
+        marginBottom: 4,
     },
-
+    modalSubtitle: {
+        ...Theme.typography.caption,
+        color: Theme.colors.textMuted,
+        textAlign: "center",
+        marginBottom: Theme.spacing.lg,
+    },
+    optionsContainer: {
+        marginBottom: Theme.spacing.lg,
+    },
     option: {
         flexDirection: "row",
         alignItems: "center",
-        paddingVertical: 12,
+        paddingVertical: Theme.spacing.md,
+        paddingHorizontal: Theme.spacing.md,
         borderBottomWidth: 1,
-        borderBottomColor: "#f5f5f5"
+        borderBottomColor: Theme.colors.border,
+        borderRadius: Theme.radius.sm,
     },
-
+    optionSelected: {
+        backgroundColor: Theme.colors.danger + '10', // very light danger color
+        borderBottomColor: 'transparent',
+    },
     optionText: {
-        marginLeft: 15,
-        fontSize: 14,
-        color: "#555"
+        ...Theme.typography.body,
+        color: Theme.colors.text,
+        marginLeft: Theme.spacing.md,
     },
-
+    optionTextSelected: {
+        color: Theme.colors.danger,
+        fontWeight: '600',
+    },
     radio: {
-        width: 20,
-        height: 20,
-        borderRadius: 10,
+        width: 22,
+        height: 22,
+        borderRadius: 11,
         borderWidth: 2,
-        borderColor: "#DDD"
+        borderColor: Theme.colors.border,
+        justifyContent: 'center',
+        alignItems: 'center',
     },
-
     radioActive: {
-        backgroundColor: "#D9534F",
-        borderColor: "#D9534F"
+        borderColor: Theme.colors.danger,
     },
-
+    radioInner: {
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+        backgroundColor: Theme.colors.danger,
+    },
     confirmBtn: {
-        backgroundColor: "#D9534F",
-        padding: 16,
-        borderRadius: 20,
-        alignItems: "center",
-        marginTop: 25,
-        elevation: 3
-    }
-
+        backgroundColor: Theme.colors.danger,
+        marginTop: Theme.spacing.sm,
+    },
 });

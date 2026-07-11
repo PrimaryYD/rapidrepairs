@@ -1,6 +1,7 @@
 import { WebView } from "react-native-webview";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { View, ActivityIndicator, Text } from "react-native";
+import { Theme } from "../constants/theme";
 import { useEffect, useState, useRef } from "react";
 import { BASE_URL } from "../api";
 
@@ -26,7 +27,11 @@ export default function PaymentWebview() {
 
         const interval = setInterval(async () => {
             try {
-                const res = await fetch(`${BASE_URL}/check-status/${orderId}`);
+                const res = await fetch(`${BASE_URL}/check-status/${orderId}`, {
+                    headers: {
+                        "bypass-tunnel-reminder": "true"
+                    }
+                });
                 const data = await res.json();
 
                 const status = data.payment_status;

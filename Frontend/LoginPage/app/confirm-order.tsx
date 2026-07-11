@@ -7,6 +7,8 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useState } from "react";
+import { Theme } from "../constants/theme";
+import AnimatedButton from "../components/ui/AnimatedButton";
 import { Ionicons } from "@expo/vector-icons";
 
 /* ✅ TAMBAHKAN TYPE */
@@ -143,9 +145,11 @@ export default function ConfirmOrder() {
             </View>
 
             {/* BUTTON */}
-            <TouchableOpacity style={styles.payButton}>
-                <Text style={styles.payText}>Lanjutkan ke Pembayaran</Text>
-            </TouchableOpacity>
+            <AnimatedButton
+                title="Lanjutkan ke Pembayaran"
+                onPress={() => {}}
+                style={{ marginTop: 10 }}
+            />
 
         </View>
       </ScrollView>
@@ -157,7 +161,7 @@ const styles = StyleSheet.create({
 
     container: {
         flex: 1,
-        backgroundColor: "#F4E2C7",
+        backgroundColor: Theme.colors.background,
         padding: 16
     },
 
@@ -174,7 +178,7 @@ const styles = StyleSheet.create({
     },
 
     card: {
-        backgroundColor: "#fff",
+        backgroundColor: Theme.colors.surface,
         padding: 16,
         borderRadius: 16,
         marginBottom: 16
@@ -213,12 +217,12 @@ const styles = StyleSheet.create({
 
     note: {
         fontSize: 12,
-        color: "#777"
+        color: Theme.colors.textMuted
     },
 
     priceDetail: {
         fontSize: 13,
-        color: "#666",
+        color: Theme.colors.textMuted,
         marginBottom: 4
     },
 
@@ -237,7 +241,7 @@ const styles = StyleSheet.create({
     },
 
     payButton: {
-        backgroundColor: "#A67C52",
+        backgroundColor: Theme.colors.primary,
         padding: 16,
         borderRadius: 30,
         alignItems: "center",
@@ -269,7 +273,7 @@ const styles = StyleSheet.create({
 
     barText: {
         fontSize: 12,
-        color: "#555",
+        color: Theme.colors.textMuted,
         textTransform: "capitalize"
     },
 

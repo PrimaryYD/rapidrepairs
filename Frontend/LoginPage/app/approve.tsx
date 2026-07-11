@@ -17,6 +17,11 @@ import {
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { BASE_URL } from "../api";
+import { db } from "./_firebaseConfig";
+import { doc, updateDoc } from "firebase/firestore";
+import { Theme } from "../constants/theme";
+import { useCustomAlert } from "../components/ui/GlobalAlertProvider";
+import AnimatedButton from "../components/ui/AnimatedButton";
 
 interface Answer {
     question: string;
@@ -59,18 +64,25 @@ export default function AdminApprove() {
     const [approvingUid, setApprovingUid] = useState<string | null>(null);
 
     // New Escrow & Orders state
-    const [adminView, setAdminView] = useState<"registration" | "escrow">("registration");
+    const [adminView, setAdminView] = useState<"registration" | "escrow" | "warranty">("registration");
     const [escrowTab, setEscrowTab] = useState<"pending" | "released" | "all">("pending");
+    const [warrantyTab, setWarrantyTab] = useState<"pending" | "approved" | "all">("pending");
     const [orders, setOrders] = useState<any[]>([]);
     const [selectedOrder, setSelectedOrder] = useState<any>(null);
     const [releasingOrderId, setReleasingOrderId] = useState<string | null>(null);
+    const [approvingWarrantyId, setApprovingWarrantyId] = useState<string | null>(null);
+    const { showAlert, showConfirm } = useCustomAlert();
 
     const fetchAllData = async () => {
         try {
             setLoading(true);
             
             // 1. Fetch Technicians
-            const techResponse = await fetch(`${BASE_URL}/technicians`);
+            const techResponse = await fetch(`${BASE_URL}/technicians`, {
+                headers: {
+                    "bypass-tunnel-reminder": "true"
+                }
+            });
             if (!techResponse.ok) throw new Error("Gagal mengambil data teknisi");
             const techData = await techResponse.json();
             const sortedTechs = techData.sort((a: any, b: any) => {
@@ -81,7 +93,11 @@ export default function AdminApprove() {
             setTechnicians(sortedTechs);
 
             // 2. Fetch Orders
-            const orderResponse = await fetch(`${BASE_URL}/api/admin/orders`);
+            const orderResponse = await fetch(`${BASE_URL}/api/admin/orders`, {
+                headers: {
+                    "bypass-tunnel-reminder": "true"
+                }
+            });
             if (!orderResponse.ok) throw new Error("Gagal mengambil data order");
             const orderData = await orderResponse.json();
             const sortedOrders = orderData.sort((a: any, b: any) => {
@@ -92,7 +108,7 @@ export default function AdminApprove() {
             setOrders(sortedOrders);
         } catch (error: any) {
             console.error("Fetch data error:", error);
-            Alert.alert("Error", error.message || "Gagal menghubungkan ke server.");
+            showAlert({ title: "Error", message: error.message || "Gagal menghubungkan ke server.", type: "error" });
         } finally {
             setLoading(false);
             setRefreshing(false);
@@ -109,50 +125,42 @@ export default function AdminApprove() {
     };
 
     const handleApprove = async (uid: string) => {
+        showConfirm({
+            title: "Konfirmasi Persetujuan",
+            message: "Apakah Anda yakin ingin menyetujui teknisi ini menjadi mitra resmi?",
+            onConfirm: async () => {
+                try {
+                    setApprovingUid(uid);
+                    const response = await fetch(`${BASE_URL}/technician/approve`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "bypass-tunnel-reminder": "true"
+                        },
+                        body: JSON.stringify({ uid })
+                    });
 
-        Alert.alert(
-            "Konfirmasi Persetujuan",
-            "Apakah Anda yakin ingin menyetujui teknisi ini menjadi mitra resmi?",
-            [
-                { text: "Batal", style: "cancel" },
-                {
-                    text: "Ya, Setujui",
-                    onPress: async () => {
-                        try {
-                            setApprovingUid(uid);
-                            const response = await fetch(`${BASE_URL}/technician/approve`, {
-                                method: "POST",
-                                headers: {
-                                    "Content-Type": "application/json"
-                                },
-                                body: JSON.stringify({ uid })
-                            });
+                    const result = await response.json();
+                    if (!response.ok) throw new Error(result.error || "Gagal menyetujui teknisi");
 
-                            const result = await response.json();
-                            if (!response.ok) throw new Error(result.error || "Gagal menyetujui teknisi");
+                    showAlert({ title: "Sukses", message: "Teknisi berhasil disetujui!", type: "success" });
+                    
+                    setTechnicians(prev => 
+                        prev.map(tech => 
+                            tech.uid === uid ? { ...tech, status: "approved" } : tech
+                        )
+                    );
 
-                            Alert.alert("Sukses 🎉", "Teknisi berhasil disetujui!");
-                            
-                            // Update local state
-                            setTechnicians(prev => 
-                                prev.map(tech => 
-                                    tech.uid === uid ? { ...tech, status: "approved" } : tech
-                                )
-                            );
-
-                            // Update selected tech detail if open
-                            if (selectedTech && selectedTech.uid === uid) {
-                                setSelectedTech(prev => prev ? { ...prev, status: "approved" } : null);
-                            }
-                        } catch (error: any) {
-                            Alert.alert("Gagal", error.message);
-                        } finally {
-                            setApprovingUid(null);
-                        }
+                    if (selectedTech && selectedTech.uid === uid) {
+                        setSelectedTech(prev => prev ? { ...prev, status: "approved" } : null);
                     }
+                } catch (error: any) {
+                    showAlert({ title: "Gagal", message: error.message, type: "error" });
+                } finally {
+                    setApprovingUid(null);
                 }
-            ]
-        );
+            }
+        });
     };
     const handleChatWhatsApp = (phone: string, name: string) => {
         // Clean phone number (replace leading +62 or 0)
@@ -174,53 +182,80 @@ export default function AdminApprove() {
                 Linking.openURL(`https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`);
             }
         }).catch(err => {
-            Alert.alert("Gagal", "Tidak dapat membuka WhatsApp");
+            showAlert({ title: "Gagal", message: "Tidak dapat membuka WhatsApp", type: "error" });
         });
     };
 
     const handleReleaseEscrow = async (orderId: string) => {
-        Alert.alert(
-            "Konfirmasi Pencairan Dana",
-            "Apakah Anda yakin ingin menyetujui pencairan dana escrow ini ke rekening teknisi?",
-            [
-                { text: "Batal", style: "cancel" },
-                {
-                    text: "Ya, Cairkan",
-                    onPress: async () => {
-                        try {
-                            setReleasingOrderId(orderId);
-                            const response = await fetch(`${BASE_URL}/api/admin/orders/release-escrow`, {
-                                method: "POST",
-                                headers: {
-                                    "Content-Type": "application/json"
-                                },
-                                body: JSON.stringify({ orderId })
-                            });
+        showConfirm({
+            title: "Konfirmasi Pencairan Dana",
+            message: "Apakah Anda yakin ingin menyetujui pencairan dana escrow ini ke rekening teknisi?",
+            onConfirm: async () => {
+                try {
+                    setReleasingOrderId(orderId);
+                    const response = await fetch(`${BASE_URL}/api/admin/orders/release-escrow`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                            "bypass-tunnel-reminder": "true"
+                        },
+                        body: JSON.stringify({ orderId })
+                    });
 
-                            const result = await response.json();
-                            if (!response.ok) throw new Error(result.error || "Gagal mencairkan dana");
+                    const result = await response.json();
+                    if (!response.ok) throw new Error(result.error || "Gagal mencairkan dana");
 
-                            Alert.alert("Sukses 💸", "Dana berhasil dicairkan ke rekening teknisi!");
-                            
-                            // Update local orders list state
-                            setOrders(prev => 
-                                prev.map(order => 
-                                    order.id === orderId ? { ...order, escrowStatus: "released" } : order
-                                )
-                            );
+                    showAlert({ title: "Sukses", message: "Dana berhasil dicairkan ke rekening teknisi!", type: "success" });
+                    
+                    setOrders(prev => 
+                        prev.map(order => 
+                            order.id === orderId ? { ...order, escrowStatus: "released" } : order
+                        )
+                    );
 
-                            if (selectedOrder && selectedOrder.id === orderId) {
-                                setSelectedOrder((prev: any) => prev ? { ...prev, escrowStatus: "released" } : null);
-                            }
-                        } catch (error: any) {
-                            Alert.alert("Gagal", error.message);
-                        } finally {
-                            setReleasingOrderId(null);
-                        }
+                    if (selectedOrder && selectedOrder.id === orderId) {
+                        setSelectedOrder((prev: any) => prev ? { ...prev, escrowStatus: "released" } : null);
                     }
+                } catch (error: any) {
+                    showAlert({ title: "Gagal", message: error.message, type: "error" });
+                } finally {
+                    setReleasingOrderId(null);
                 }
-            ]
-        );
+            }
+        });
+    };
+
+    const handleApproveWarranty = async (orderId: string) => {
+        showConfirm({
+            title: "Konfirmasi Garansi",
+            message: "Apakah Anda yakin ingin menyetujui klaim garansi ini?",
+            onConfirm: async () => {
+                try {
+                    setApprovingWarrantyId(orderId);
+                    const orderRef = doc(db, "orders", orderId);
+                    await updateDoc(orderRef, {
+                        warranty_status: "approved",
+                        status: "warranty_approved"
+                    });
+                    
+                    showAlert({ title: "Sukses", message: "Klaim garansi telah disetujui!", type: "success" });
+                    
+                    setOrders(prev => prev.map(order => 
+                        order.id === orderId 
+                        ? { ...order, warranty_status: "approved", status: "warranty_approved" }
+                        : order
+                    ));
+
+                    if (selectedOrder && selectedOrder.id === orderId) {
+                        setSelectedOrder((prev: any) => prev ? { ...prev, warranty_status: "approved", status: "warranty_approved" } : null);
+                    }
+                } catch (error: any) {
+                    showAlert({ title: "Gagal", message: error.message || "Gagal menyetujui klaim garansi", type: "error" });
+                } finally {
+                    setApprovingWarrantyId(null);
+                }
+            }
+        });
     };
     const filteredTechnicians = technicians.filter(tech => {
         if (activeTab === "pending") return tech.status === "pending" || !tech.status;
@@ -298,6 +333,58 @@ export default function AdminApprove() {
         return isCompleted || isReleased;
     });
 
+    const filteredWarrantyOrders = orders.filter(order => {
+        const isWarrantyPending = order.warranty_status === "pending_admin_approval";
+        const isWarrantyApproved = order.warranty_status === "approved";
+        
+        if (warrantyTab === "pending") return isWarrantyPending;
+        if (warrantyTab === "approved") return isWarrantyApproved;
+        return isWarrantyPending || isWarrantyApproved;
+    });
+
+    const renderWarrantyCard = ({ item }: { item: any }) => {
+        const isPending = item.warranty_status === "pending_admin_approval";
+        
+        return (
+            <TouchableOpacity style={styles.techCard} activeOpacity={0.8} onPress={() => setSelectedOrder(item)}>
+                <View style={styles.cardHeader}>
+                    <View style={styles.avatarPlaceholder}>
+                        <Ionicons name="shield-checkmark" size={22} color="#B3875E" />
+                    </View>
+                    <View style={styles.headerInfo}>
+                        <Text style={styles.techName}>ID: {item.id}</Text>
+                        <Text style={styles.techSpec}>{item.serviceType || "Layanan Perbaikan AC"}</Text>
+                    </View>
+                    <View style={[styles.statusBadge, isPending ? styles.badgePending : styles.badgeApproved]}>
+                        <Text style={[styles.statusText, isPending ? styles.statusPendingText : styles.statusApprovedText]}>
+                            {isPending ? "Menunggu" : "Disetujui"}
+                        </Text>
+                    </View>
+                </View>
+
+                <View style={styles.cardDivider} />
+
+                <View style={styles.cardBody}>
+                    <View style={styles.infoRow}>
+                        <Ionicons name="person-outline" size={16} color="#777" />
+                        <Text style={styles.infoRowText}>Pelanggan: <Text style={{fontWeight: '700'}}>{item.userName || "Customer"}</Text></Text>
+                    </View>
+                    <View style={styles.infoRow}>
+                        <Ionicons name="construct-outline" size={16} color="#777" />
+                        <Text style={styles.infoRowText}>Teknisi: <Text style={{fontWeight: '700', color: '#B3875E'}}>{item.technicianName || "Unknown Technician"}</Text></Text>
+                    </View>
+                </View>
+
+                <View style={styles.cardFooter}>
+                    <TouchableOpacity style={styles.detailButton} onPress={() => setSelectedOrder(item)}>
+                        <Text style={styles.detailButtonText}>Lihat Detail Garansi</Text>
+                        <Ionicons name="chevron-forward" size={16} color="#B3875E" />
+                    </TouchableOpacity>
+                </View>
+            </TouchableOpacity>
+        );
+    };
+
     const renderOrderCard = ({ item }: { item: any }) => {
         const isPendingRelease = item.escrowStatus !== "released";
         const total = item.totalBill || 50000;
@@ -367,16 +454,19 @@ export default function AdminApprove() {
                     <Text style={styles.adminSubtitle}>
                         {adminView === "registration" 
                             ? "Verifikasi Pendaftaran Mitra Teknisi" 
-                            : "Persetujuan Pencairan Dana Escrow"}
+                            : adminView === "escrow"
+                            ? "Persetujuan Pencairan Dana Escrow"
+                            : "Persetujuan Klaim Garansi Pelanggan"}
                     </Text>
                 </View>
                 <TouchableOpacity 
                     style={styles.logoutButton}
                     onPress={() => {
-                        Alert.alert("Konfirmasi", "Keluar dari Halaman Admin?", [
-                            { text: "Batal" },
-                            { text: "Keluar", onPress: () => router.replace("/login") }
-                        ]);
+                        showConfirm({
+                            title: "Konfirmasi",
+                            message: "Keluar dari Halaman Admin?",
+                            onConfirm: () => router.replace("/login")
+                        });
                     }}
                 >
                     <Ionicons name="log-out-outline" size={20} color="#D9534F" />
@@ -414,6 +504,20 @@ export default function AdminApprove() {
                         Pencairan Dana
                     </Text>
                 </TouchableOpacity>
+                <TouchableOpacity
+                    style={[styles.masterTabButton, adminView === "warranty" && styles.masterTabButtonActive]}
+                    onPress={() => setAdminView("warranty")}
+                >
+                    <Ionicons 
+                        name="shield-checkmark-outline" 
+                        size={16} 
+                        color={adminView === "warranty" ? "#FFF" : "#8B8175"} 
+                        style={{ marginRight: 6 }}
+                    />
+                    <Text style={[styles.masterTabText, adminView === "warranty" && styles.masterTabTextActive]}>
+                        Garansi
+                    </Text>
+                </TouchableOpacity>
             </View>
 
             {/* Sub-Tab Selectors depending on view */}
@@ -431,7 +535,7 @@ export default function AdminApprove() {
                         </TouchableOpacity>
                     ))}
                 </View>
-            ) : (
+            ) : adminView === "escrow" ? (
                 <View style={styles.tabContainer}>
                     {(["pending", "released", "all"] as const).map(tab => (
                         <TouchableOpacity
@@ -441,6 +545,20 @@ export default function AdminApprove() {
                         >
                             <Text style={[styles.tabText, escrowTab === tab && styles.tabTextActive]}>
                                 {tab === "pending" ? "Menunggu" : tab === "released" ? "Dicairkan" : "Semua"}
+                            </Text>
+                        </TouchableOpacity>
+                    ))}
+                </View>
+            ) : (
+                <View style={styles.tabContainer}>
+                    {(["pending", "approved", "all"] as const).map(tab => (
+                        <TouchableOpacity
+                            key={tab}
+                            style={[styles.tabButton, warrantyTab === tab && styles.tabButtonActive]}
+                            onPress={() => setWarrantyTab(tab)}
+                        >
+                            <Text style={[styles.tabText, warrantyTab === tab && styles.tabTextActive]}>
+                                {tab === "pending" ? "Menunggu" : tab === "approved" ? "Disetujui" : "Semua"}
                             </Text>
                         </TouchableOpacity>
                     ))}
@@ -481,7 +599,7 @@ export default function AdminApprove() {
                         showsVerticalScrollIndicator={false}
                     />
                 )
-            ) : (
+            ) : adminView === "escrow" ? (
                 loading && !refreshing ? (
                     <View style={styles.centerContainer}>
                         <ActivityIndicator size="large" color="#B3875E" />
@@ -507,6 +625,39 @@ export default function AdminApprove() {
                     <FlatList
                         data={filteredOrders}
                         renderItem={renderOrderCard}
+                        keyExtractor={item => item.id}
+                        contentContainerStyle={styles.listContent}
+                        refreshing={refreshing}
+                        onRefresh={handleRefresh}
+                        showsVerticalScrollIndicator={false}
+                    />
+                )
+            ) : (
+                loading && !refreshing ? (
+                    <View style={styles.centerContainer}>
+                        <ActivityIndicator size="large" color="#B3875E" />
+                        <Text style={styles.loadingLabel}>Memuat data klaim garansi...</Text>
+                    </View>
+                ) : filteredWarrantyOrders.length === 0 ? (
+                    <View style={styles.centerContainer}>
+                        <Ionicons name="shield-checkmark-outline" size={64} color="#CCC" />
+                        <Text style={styles.emptyTitle}>Tidak Ada Garansi</Text>
+                        <Text style={styles.emptySubtitle}>
+                            {warrantyTab === "pending" 
+                                ? "Saat ini tidak ada pelanggan yang mengajukan klaim garansi."
+                                : warrantyTab === "approved"
+                                ? "Belum ada garansi yang disetujui."
+                                : "Daftar garansi kosong."}
+                        </Text>
+                        <TouchableOpacity style={styles.refreshButton} onPress={handleRefresh}>
+                            <Ionicons name="refresh" size={16} color="#FFF" style={{marginRight: 6}} />
+                            <Text style={styles.refreshButtonText}>Refresh Data</Text>
+                        </TouchableOpacity>
+                    </View>
+                ) : (
+                    <FlatList
+                        data={filteredWarrantyOrders}
+                        renderItem={renderWarrantyCard}
                         keyExtractor={item => item.id}
                         contentContainerStyle={styles.listContent}
                         refreshing={refreshing}
@@ -746,20 +897,13 @@ export default function AdminApprove() {
                         {/* Bottom Actions Bar inside Detail */}
                         <View style={styles.bottomActionBar}>
                             {selectedTech.status === "pending" || !selectedTech.status ? (
-                                <TouchableOpacity
-                                    style={[styles.approveActionBtn, approvingUid === selectedTech.uid && { opacity: 0.8 }]}
-                                    disabled={approvingUid === selectedTech.uid}
+                                <AnimatedButton
+                                    title="Approve & Aktifkan Mitra"
+                                    icon={<Ionicons name="checkmark-circle-outline" size={20} color="#FFF" style={{marginRight: 6}} />}
+                                    isLoading={approvingUid === selectedTech.uid}
                                     onPress={() => handleApprove(selectedTech.uid)}
-                                >
-                                    {approvingUid === selectedTech.uid ? (
-                                        <ActivityIndicator color="#FFF" />
-                                    ) : (
-                                        <>
-                                            <Ionicons name="checkmark-circle-outline" size={20} color="#FFF" style={{marginRight: 6}} />
-                                            <Text style={styles.approveActionBtnText}>Approve & Aktifkan Mitra</Text>
-                                        </>
-                                    )}
-                                </TouchableOpacity>
+                                    style={{ width: '100%' }}
+                                />
                             ) : (
                                 <View style={styles.approvedActivePanel}>
                                     <Ionicons name="ribbon" size={20} color="#5CB85C" style={{marginRight: 6}} />
@@ -909,26 +1053,36 @@ export default function AdminApprove() {
 
                         {/* Bottom Actions Bar inside Detail */}
                         <View style={styles.bottomActionBar}>
-                            {selectedOrder.escrowStatus !== "released" ? (
-                                <TouchableOpacity
-                                    style={[styles.approveActionBtn, releasingOrderId === selectedOrder.id && { opacity: 0.8 }]}
-                                    disabled={releasingOrderId === selectedOrder.id}
-                                    onPress={() => handleReleaseEscrow(selectedOrder.id)}
-                                >
-                                    {releasingOrderId === selectedOrder.id ? (
-                                        <ActivityIndicator color="#FFF" />
-                                    ) : (
-                                        <>
-                                            <Ionicons name="checkmark-circle-outline" size={20} color="#FFF" style={{marginRight: 6}} />
-                                            <Text style={styles.approveActionBtnText}>Approve & Cairkan Dana</Text>
-                                        </>
-                                    )}
-                                </TouchableOpacity>
+                            {adminView === "warranty" ? (
+                                selectedOrder.warranty_status === "pending_admin_approval" ? (
+                                    <AnimatedButton
+                                        title="Approve & Aktifkan Garansi"
+                                        icon={<Ionicons name="shield-checkmark" size={20} color="#FFF" style={{marginRight: 6}} />}
+                                        isLoading={approvingWarrantyId === selectedOrder.id}
+                                        onPress={() => handleApproveWarranty(selectedOrder.id)}
+                                        style={{ width: '100%' }}
+                                    />
+                                ) : (
+                                    <View style={styles.approvedActivePanel}>
+                                        <Ionicons name="checkmark-circle" size={20} color="#5CB85C" style={{marginRight: 6}} />
+                                        <Text style={styles.approvedActiveText}>Garansi Telah Disetujui</Text>
+                                    </View>
+                                )
                             ) : (
-                                <View style={styles.approvedActivePanel}>
-                                    <Ionicons name="checkmark-circle" size={20} color="#5CB85C" style={{marginRight: 6}} />
-                                    <Text style={styles.approvedActiveText}>Dana Telah Dicairkan ke Teknisi</Text>
-                                </View>
+                                selectedOrder.escrowStatus !== "released" ? (
+                                    <AnimatedButton
+                                        title="Approve & Cairkan Dana"
+                                        icon={<Ionicons name="checkmark-circle-outline" size={20} color="#FFF" style={{marginRight: 6}} />}
+                                        isLoading={releasingOrderId === selectedOrder.id}
+                                        onPress={() => handleReleaseEscrow(selectedOrder.id)}
+                                        style={{ width: '100%' }}
+                                    />
+                                ) : (
+                                    <View style={styles.approvedActivePanel}>
+                                        <Ionicons name="checkmark-circle" size={20} color="#5CB85C" style={{marginRight: 6}} />
+                                        <Text style={styles.approvedActiveText}>Dana Telah Dicairkan ke Teknisi</Text>
+                                    </View>
+                                )
                             )}
                         </View>
                     </SafeAreaView>
@@ -966,7 +1120,7 @@ export default function AdminApprove() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: "#FAF6F0",
+        backgroundColor: Theme.colors.background,
     },
     appHeader: {
         flexDirection: "row",
@@ -975,7 +1129,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         paddingTop: Platform.OS === "android" ? 40 : 15,
         paddingBottom: 15,
-        backgroundColor: "#FFF",
+        backgroundColor: Theme.colors.surface,
         borderBottomWidth: 1.5,
         borderBottomColor: "#F0EFEB",
         elevation: 2,
@@ -987,11 +1141,11 @@ const styles = StyleSheet.create({
     adminTitle: {
         fontSize: 18,
         fontWeight: "900",
-        color: "#333",
+        color: Theme.colors.text,
     },
     adminSubtitle: {
         fontSize: 11,
-        color: "#B3875E",
+        color: Theme.colors.primary,
         fontWeight: "600",
         marginTop: 2,
     },
@@ -1013,7 +1167,7 @@ const styles = StyleSheet.create({
     },
     tabContainer: {
         flexDirection: "row",
-        backgroundColor: "#FFF",
+        backgroundColor: Theme.colors.surface,
         paddingVertical: 10,
         paddingHorizontal: 16,
         borderBottomWidth: 1,
@@ -1027,11 +1181,11 @@ const styles = StyleSheet.create({
         alignItems: "center",
         backgroundColor: "#F7F5F0",
         borderWidth: 1,
-        borderColor: "#F0EFEB",
+        borderColor: Theme.colors.border,
     },
     tabButtonActive: {
-        backgroundColor: "#B3875E",
-        borderColor: "#B3875E",
+        backgroundColor: Theme.colors.primary,
+        borderColor: Theme.colors.primary,
     },
     tabText: {
         fontSize: 13,
@@ -1051,12 +1205,12 @@ const styles = StyleSheet.create({
         marginTop: 15,
         fontSize: 14,
         fontWeight: "600",
-        color: "#B3875E",
+        color: Theme.colors.primary,
     },
     emptyTitle: {
         fontSize: 18,
         fontWeight: "800",
-        color: "#333",
+        color: Theme.colors.text,
         marginTop: 15,
     },
     emptySubtitle: {
@@ -1069,7 +1223,7 @@ const styles = StyleSheet.create({
     refreshButton: {
         flexDirection: "row",
         alignItems: "center",
-        backgroundColor: "#B3875E",
+        backgroundColor: Theme.colors.primary,
         paddingVertical: 12,
         paddingHorizontal: 20,
         borderRadius: 30,
@@ -1086,10 +1240,10 @@ const styles = StyleSheet.create({
         gap: 16,
     },
     techCard: {
-        backgroundColor: "#FFF",
+        backgroundColor: Theme.colors.surface,
         borderRadius: 20,
         borderWidth: 1.5,
-        borderColor: "#F0EFEB",
+        borderColor: Theme.colors.border,
         padding: 16,
         elevation: 2,
         shadowColor: "#000",
@@ -1105,11 +1259,11 @@ const styles = StyleSheet.create({
         width: 44,
         height: 44,
         borderRadius: 22,
-        backgroundColor: "#FAF6F0",
+        backgroundColor: Theme.colors.background,
         alignItems: "center",
         justifyContent: "center",
         borderWidth: 1.5,
-        borderColor: "#EAE6DF",
+        borderColor: Theme.colors.border,
         overflow: 'hidden',
     },
     avatarImage: {
@@ -1123,11 +1277,11 @@ const styles = StyleSheet.create({
     techName: {
         fontSize: 15,
         fontWeight: "800",
-        color: "#333",
+        color: Theme.colors.text,
     },
     techSpec: {
         fontSize: 12,
-        color: "#B3875E",
+        color: Theme.colors.primary,
         fontWeight: "600",
         marginTop: 2,
     },
@@ -1167,7 +1321,7 @@ const styles = StyleSheet.create({
     },
     infoRowText: {
         fontSize: 12,
-        color: "#555",
+        color: Theme.colors.textMuted,
         fontWeight: "500",
     },
     cardFooter: {
@@ -1181,7 +1335,7 @@ const styles = StyleSheet.create({
     },
     detailButtonText: {
         fontSize: 12,
-        color: "#B3875E",
+        color: Theme.colors.primary,
         fontWeight: "700",
         marginRight: 2,
     },
@@ -1189,7 +1343,7 @@ const styles = StyleSheet.create({
     // Detail Modal Styles
     detailContainer: {
         flex: 1,
-        backgroundColor: "#FAF6F0",
+        backgroundColor: Theme.colors.background,
     },
     detailHeader: {
         flexDirection: "row",
@@ -1197,7 +1351,7 @@ const styles = StyleSheet.create({
         alignItems: "center",
         paddingHorizontal: 16,
         paddingVertical: 15,
-        backgroundColor: "#FFF",
+        backgroundColor: Theme.colors.surface,
         borderBottomWidth: 1.5,
         borderBottomColor: "#F0EFEB",
     },
@@ -1207,17 +1361,17 @@ const styles = StyleSheet.create({
     detailHeaderTitle: {
         fontSize: 16,
         fontWeight: "800",
-        color: "#333",
+        color: Theme.colors.text,
     },
     detailScroll: {
         flex: 1,
         padding: 16,
     },
     detailProfileCard: {
-        backgroundColor: "#FFF",
+        backgroundColor: Theme.colors.surface,
         borderRadius: 24,
         borderWidth: 1.5,
-        borderColor: "#F0EFEB",
+        borderColor: Theme.colors.border,
         padding: 20,
         alignItems: "center",
         marginBottom: 20,
@@ -1226,11 +1380,11 @@ const styles = StyleSheet.create({
         width: 80,
         height: 80,
         borderRadius: 40,
-        backgroundColor: "#FAF6F0",
+        backgroundColor: Theme.colors.background,
         alignItems: "center",
         justifyContent: "center",
         borderWidth: 2,
-        borderColor: "#EAE6DF",
+        borderColor: Theme.colors.border,
         overflow: "hidden",
         marginBottom: 12,
     },
@@ -1241,11 +1395,11 @@ const styles = StyleSheet.create({
     detailName: {
         fontSize: 18,
         fontWeight: "900",
-        color: "#333",
+        color: Theme.colors.text,
     },
     detailSub: {
         fontSize: 13,
-        color: "#777",
+        color: Theme.colors.textMuted,
         fontWeight: "500",
         marginTop: 3,
     },
@@ -1270,17 +1424,17 @@ const styles = StyleSheet.create({
         fontSize: 13,
     },
     detailSection: {
-        backgroundColor: "#FFF",
+        backgroundColor: Theme.colors.surface,
         borderRadius: 24,
         borderWidth: 1.5,
-        borderColor: "#F0EFEB",
+        borderColor: Theme.colors.border,
         padding: 20,
         marginBottom: 16,
     },
     sectionTitle: {
         fontSize: 14,
         fontWeight: "800",
-        color: "#333",
+        color: Theme.colors.text,
         marginBottom: 14,
         borderLeftWidth: 3,
         borderLeftColor: "#B3875E",
@@ -1314,7 +1468,7 @@ const styles = StyleSheet.create({
     gridVal: {
         fontSize: 12,
         fontWeight: "700",
-        color: "#333",
+        color: Theme.colors.text,
         marginTop: 4,
     },
     skillsBadgeContainer: {
@@ -1323,9 +1477,9 @@ const styles = StyleSheet.create({
         gap: 8,
     },
     skillBadge: {
-        backgroundColor: "#FAF6F0",
+        backgroundColor: Theme.colors.background,
         borderWidth: 1,
-        borderColor: "#EAE6DF",
+        borderColor: Theme.colors.border,
         paddingVertical: 6,
         paddingHorizontal: 12,
         borderRadius: 15,
@@ -1347,11 +1501,11 @@ const styles = StyleSheet.create({
     bankNameText: {
         fontSize: 14,
         fontWeight: "800",
-        color: "#333",
+        color: Theme.colors.text,
     },
     bankAccountText: {
         fontSize: 13,
-        color: "#555",
+        color: Theme.colors.textMuted,
         fontWeight: "600",
         marginTop: 2,
     },
@@ -1379,7 +1533,7 @@ const styles = StyleSheet.create({
     testScoreNumber: {
         fontSize: 12,
         fontWeight: "800",
-        color: "#B3875E",
+        color: Theme.colors.primary,
     },
     answersList: {
         gap: 12,
@@ -1419,7 +1573,7 @@ const styles = StyleSheet.create({
     answerQuestion: {
         fontSize: 13,
         fontWeight: "700",
-        color: "#333",
+        color: Theme.colors.text,
         lineHeight: 18,
     },
     answersDetailsContainer: {
@@ -1430,7 +1584,7 @@ const styles = StyleSheet.create({
     },
     answerOptionText: {
         fontSize: 11,
-        color: "#555",
+        color: Theme.colors.textMuted,
         lineHeight: 15,
     },
     emptySectionText: {
@@ -1467,7 +1621,7 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         overflow: "hidden",
         borderWidth: 1,
-        borderColor: "#EAE6DF",
+        borderColor: Theme.colors.border,
     },
     docImage: {
         width: "100%",
@@ -1477,11 +1631,11 @@ const styles = StyleSheet.create({
         width: "100%",
         height: 100,
         borderRadius: 12,
-        backgroundColor: "#FFF",
+        backgroundColor: Theme.colors.surface,
         justifyContent: "center",
         alignItems: "center",
         borderWidth: 1,
-        borderColor: "#EAE6DF",
+        borderColor: Theme.colors.border,
         borderStyle: "dashed",
     },
     noDocText: {
@@ -1503,7 +1657,7 @@ const styles = StyleSheet.create({
         height: 95,
         borderRadius: 12,
         borderWidth: 1.5,
-        borderColor: "#EAE6DF",
+        borderColor: Theme.colors.border,
     },
     photoCountBadge: {
         position: "absolute",
@@ -1526,7 +1680,7 @@ const styles = StyleSheet.create({
         bottom: 0,
         left: 0,
         right: 0,
-        backgroundColor: "#FFF",
+        backgroundColor: Theme.colors.surface,
         borderTopWidth: 1.5,
         borderTopColor: "#F0EFEB",
         padding: 16,
@@ -1592,7 +1746,7 @@ const styles = StyleSheet.create({
     // Escrow & Comparison Photo Styles
     masterTabContainer: {
         flexDirection: "row",
-        backgroundColor: "#FAF6F0",
+        backgroundColor: Theme.colors.background,
         padding: 8,
         borderBottomWidth: 1,
         borderBottomColor: "#F0EFEB",
@@ -1605,9 +1759,9 @@ const styles = StyleSheet.create({
         borderRadius: 20,
         alignItems: "center",
         justifyContent: "center",
-        backgroundColor: "#FFF",
+        backgroundColor: Theme.colors.surface,
         borderWidth: 1.5,
-        borderColor: "#F0EFEB",
+        borderColor: Theme.colors.border,
         elevation: 1,
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 1 },
@@ -1615,8 +1769,8 @@ const styles = StyleSheet.create({
         shadowRadius: 2,
     },
     masterTabButtonActive: {
-        backgroundColor: "#B3875E",
-        borderColor: "#B3875E",
+        backgroundColor: Theme.colors.primary,
+        borderColor: Theme.colors.primary,
     },
     masterTabText: {
         fontSize: 12,
@@ -1637,7 +1791,7 @@ const styles = StyleSheet.create({
     serviceComparisonTitle: {
         fontSize: 13,
         fontWeight: "800",
-        color: "#333",
+        color: Theme.colors.text,
         marginBottom: 12,
         borderLeftWidth: 3,
         borderLeftColor: "#B3875E",
@@ -1672,7 +1826,7 @@ const styles = StyleSheet.create({
         borderRadius: 12,
         overflow: "hidden",
         borderWidth: 1.5,
-        borderColor: "#EAE6DF",
+        borderColor: Theme.colors.border,
     },
     comparisonImage: {
         width: "100%",
@@ -1682,11 +1836,11 @@ const styles = StyleSheet.create({
         width: "100%",
         height: 100,
         borderRadius: 12,
-        backgroundColor: "#FFF",
+        backgroundColor: Theme.colors.surface,
         justifyContent: "center",
         alignItems: "center",
         borderWidth: 1,
-        borderColor: "#EAE6DF",
+        borderColor: Theme.colors.border,
         borderStyle: "dashed",
     },
     noPhotoText: {

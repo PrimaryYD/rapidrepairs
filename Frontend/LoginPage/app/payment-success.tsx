@@ -14,6 +14,8 @@ import { useEffect, useRef } from "react";
 
 import { db } from "./_firebaseConfig";
 import { doc, updateDoc } from "firebase/firestore";
+import { Theme } from "../constants/theme";
+import AnimatedButton from "../components/ui/AnimatedButton";
 
 export default function PaymentSuccess() {
 
@@ -120,15 +122,14 @@ export default function PaymentSuccess() {
                         Order ID: {orderId}
                     </Text>
 
-                    <TouchableOpacity
-                        style={styles.button}
+                    <AnimatedButton
+                        title="Lanjut"
                         onPress={() => router.replace({
                             pathname: "/waiting" as any,
                             params: { orderId }
                         })}
-                    >
-                        <Text style={{ color: "#fff" }}>Lanjut</Text>
-                    </TouchableOpacity>
+                        style={{ marginTop: 25, width: "70%" }}
+                    />
 
                 </View>
             </ScrollView>
@@ -142,7 +143,7 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: "center",
         alignItems: "center",
-        backgroundColor: "#F6F2EA",
+        backgroundColor: Theme.colors.background,
         padding: 20
     },
 
@@ -169,14 +170,13 @@ const styles = StyleSheet.create({
     },
 
     title: {
-        fontWeight: "600",
-        fontSize: 16,
+        ...Theme.typography.subtitle,
         marginTop: 15
     },
 
     desc: {
         fontSize: 12,
-        color: "#666",
+        color: Theme.colors.textMuted,
         textAlign: "center",
         marginTop: 5
     },
@@ -184,11 +184,11 @@ const styles = StyleSheet.create({
     orderId: {
         marginTop: 10,
         fontSize: 11,
-        color: "#999"
+        color: Theme.colors.textMuted
     },
 
     button: {
-        backgroundColor: "#8B5E3C",
+        backgroundColor: Theme.colors.primary,
         padding: 14,
         borderRadius: 25,
         marginTop: 25,

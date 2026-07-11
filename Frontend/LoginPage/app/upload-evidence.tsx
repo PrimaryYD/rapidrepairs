@@ -17,10 +17,14 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import * as ImagePicker from "expo-image-picker";
 
 import { setTempData } from "../utils/tempStorage";
+import { Theme } from "../constants/theme";
+import { useCustomAlert } from "../components/ui/GlobalAlertProvider";
+import AnimatedButton from "../components/ui/AnimatedButton";
 
 type ImageType = {
     uri: string;
     base64?: string;
+    fileName?: string;
 };
 
 export default function UploadEvidence() {
@@ -28,6 +32,7 @@ export default function UploadEvidence() {
     const { orderId } = useLocalSearchParams();
     const [order, setOrder] = useState<any>(null);
     const [evidenceImages, setEvidenceImages] = useState<{ [key: string]: ImageType[] }>({});
+    const { showAlert } = useCustomAlert();
 
     useEffect(() => {
         if (!orderId) return;
@@ -69,7 +74,7 @@ export default function UploadEvidence() {
 
     const pickImage = async (serviceName: string) => {
         if (evidenceImages[serviceName]?.length >= 5) {
-            Alert.alert("Limit Tercapai", "Maksimal 5 foto per layanan.");
+            showAlert({ title: "Limit Tercapai", message: "Maksimal 5 foto per layanan.", type: "warning" });
             return;
         }
 
@@ -87,7 +92,8 @@ export default function UploadEvidence() {
             
             const newImageObj: ImageType = {
                 uri: newUri,
-                base64: newBase64
+                base64: newBase64,
+                fileName: result.assets[0].fileName || newUri.split('/').pop() || ""
             };
             
             setEvidenceImages(prev => ({
@@ -117,7 +123,7 @@ export default function UploadEvidence() {
         );
 
         if (missingEvidence) {
-            Alert.alert("Foto Diperlukan", `Mohon unggah minimal 1 foto untuk ${missingEvidence.name}.`);
+            showAlert({ title: "Foto Diperlukan", message: `Mohon unggah minimal 1 foto untuk ${missingEvidence.name}.`, type: "warning" });
             return;
         }
 
@@ -196,9 +202,11 @@ export default function UploadEvidence() {
             </ScrollView>
 
             <View style={styles.footer}>
-                <TouchableOpacity style={styles.primaryBtn} onPress={handleSendEvidence}>
-                    <Text style={styles.primaryBtnText}>Kirim Bukti Pengecekan</Text>
-                </TouchableOpacity>
+                <AnimatedButton
+                    title="Kirim Bukti Pengecekan"
+                    onPress={handleSendEvidence}
+                    style={{ width: '100%' }}
+                />
             </View>
         </SafeAreaView>
     );
@@ -207,7 +215,7 @@ export default function UploadEvidence() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: "#FAF6F0",
+        backgroundColor: Theme.colors.background,
     },
     loading: {
         flex: 1,
@@ -217,14 +225,14 @@ const styles = StyleSheet.create({
     header: {
         paddingVertical: 20,
         alignItems: "center",
-        backgroundColor: "#fff",
+        backgroundColor: Theme.colors.surface,
         borderBottomWidth: 1,
         borderBottomColor: "#EFEBE4",
     },
     headerTitle: {
         fontSize: 18,
         fontWeight: "700",
-        color: "#333",
+        color: Theme.colors.text,
     },
     scrollContent: {
         padding: 20,
@@ -232,17 +240,17 @@ const styles = StyleSheet.create({
     },
     description: {
         fontSize: 14,
-        color: "#777",
+        color: Theme.colors.textMuted,
         lineHeight: 20,
         marginBottom: 25,
     },
     serviceCard: {
-        backgroundColor: "#fff",
+        backgroundColor: Theme.colors.surface,
         borderRadius: 20,
         padding: 20,
         marginBottom: 20,
         borderWidth: 1,
-        borderColor: "#EFEBE4",
+        borderColor: Theme.colors.border,
         shadowColor: "#000",
         shadowOffset: { width: 0, height: 2 },
         shadowOpacity: 0.05,
@@ -258,41 +266,41 @@ const styles = StyleSheet.create({
     serviceName: {
         fontSize: 16,
         fontWeight: "700",
-        color: "#333",
+        color: Theme.colors.text,
     },
     mandatoryBadge: {
-        backgroundColor: "#FAF6F0",
+        backgroundColor: Theme.colors.background,
         paddingHorizontal: 10,
         paddingVertical: 4,
         borderRadius: 10,
         borderWidth: 1,
-        borderColor: "#E8DFD5",
+        borderColor: Theme.colors.border,
     },
     mandatoryText: {
         fontSize: 11,
-        color: "#B3875E",
+        color: Theme.colors.primary,
         fontWeight: "600",
     },
     uploadBox: {
         width: "100%",
         height: 150,
-        backgroundColor: "#FAF6F0",
+        backgroundColor: Theme.colors.background,
         borderRadius: 15,
         borderWidth: 1,
-        borderColor: "#D2C4B7",
+        borderColor: Theme.colors.border,
         borderStyle: "dashed",
         justifyContent: "center",
         alignItems: "center",
     },
     uploadBoxText: {
         fontSize: 13,
-        color: "#8B5E3C",
+        color: Theme.colors.primary,
         fontWeight: "600",
         marginTop: 10,
     },
     photoCount: {
         fontSize: 11,
-        color: "#999",
+        color: Theme.colors.textMuted,
         marginTop: 5,
     },
     imageGrid: {
@@ -329,7 +337,7 @@ const styles = StyleSheet.create({
         bottom: 0,
         left: 0,
         right: 0,
-        backgroundColor: "#fff",
+        backgroundColor: Theme.colors.surface,
         padding: 20,
         paddingBottom: 30,
         borderTopLeftRadius: 30,
@@ -341,7 +349,7 @@ const styles = StyleSheet.create({
         elevation: 10,
     },
     primaryBtn: {
-        backgroundColor: "#B3875E",
+        backgroundColor: Theme.colors.primary,
         paddingVertical: 16,
         borderRadius: 30,
         alignItems: "center",

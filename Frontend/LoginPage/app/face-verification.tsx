@@ -233,7 +233,7 @@ const styles = StyleSheet.create({
         marginTop: 15,
         fontSize: 16,
         fontWeight: "600",
-        color: "#B3875E",
+        color: Theme.colors.primary,
     },
     container: {
         flex: 1,
@@ -243,7 +243,7 @@ const styles = StyleSheet.create({
         flexDirection: "row",
         alignItems: "center",
         padding: 20,
-        backgroundColor: "#fff",
+        backgroundColor: Theme.colors.surface,
     },
     backBtn: {
         width: 40,
@@ -289,19 +289,19 @@ const styles = StyleSheet.create({
         position: "absolute",
         width: 30,
         height: 30,
-        borderColor: "#B3875E",
+        borderColor: Theme.colors.primary,
     },
     scanLine: {
         height: 2,
         width: "100%",
-        backgroundColor: "#B3875E",
+        backgroundColor: Theme.colors.primary,
         shadowColor: "#B3875E",
         shadowOpacity: 0.8,
         shadowRadius: 10,
         elevation: 5,
     },
     footer: {
-        backgroundColor: "#fff",
+        backgroundColor: Theme.colors.surface,
         padding: 30,
         alignItems: "center",
         borderTopLeftRadius: 30,
@@ -310,12 +310,12 @@ const styles = StyleSheet.create({
     instruction: {
         fontSize: 20,
         fontWeight: "800",
-        color: "#333",
+        color: Theme.colors.text,
         marginBottom: 10,
     },
     subInstruction: {
         fontSize: 14,
-        color: "#777",
+        color: Theme.colors.textMuted,
         textAlign: "center",
         marginBottom: 25,
     },
@@ -331,7 +331,7 @@ const styles = StyleSheet.create({
         backgroundColor: "#E0E0E0",
     },
     activeDot: {
-        backgroundColor: "#B3875E",
+        backgroundColor: Theme.colors.primary,
     },
     completedDot: {
         backgroundColor: "#4CAF50",
@@ -340,7 +340,7 @@ const styles = StyleSheet.create({
         width: 70,
         height: 70,
         borderRadius: 35,
-        backgroundColor: "#B3875E",
+        backgroundColor: Theme.colors.primary,
         justifyContent: "center",
         alignItems: "center",
         elevation: 5,
@@ -353,11 +353,11 @@ const styles = StyleSheet.create({
     },
     verifyingText: {
         marginTop: 10,
-        color: "#B3875E",
+        color: Theme.colors.primary,
         fontWeight: "600",
     },
     btn: {
-        backgroundColor: "#B3875E",
+        backgroundColor: Theme.colors.primary,
         padding: 15,
         borderRadius: 10,
         marginTop: 20,

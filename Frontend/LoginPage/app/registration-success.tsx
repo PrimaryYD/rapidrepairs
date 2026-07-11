@@ -1,4 +1,5 @@
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, BackHandler } from "react-native";
+import { Theme } from "../constants/theme";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -112,7 +113,7 @@ const styles = StyleSheet.create({
     title: {
         fontSize: 26,
         fontWeight: "800",
-        color: "#333",
+        color: Theme.colors.text,
         marginBottom: 20,
         textAlign: "center",
     },
@@ -147,7 +148,7 @@ const styles = StyleSheet.create({
         lineHeight: 20,
     },
     button: {
-        backgroundColor: "#8B5E3C",
+        backgroundColor: Theme.colors.primary,
         width: "100%",
         paddingVertical: 18,
         borderRadius: 30,
@@ -164,7 +165,7 @@ const styles = StyleSheet.create({
         paddingVertical: 10,
     },
     secondaryButtonText: {
-        color: "#8B5E3C",
+        color: Theme.colors.primary,
         fontSize: 15,
         fontWeight: "600",
     }

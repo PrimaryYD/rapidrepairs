@@ -5,9 +5,13 @@ import {
     ScrollView,
     TouchableOpacity,
     Image,
+    Animated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { useRef, useEffect } from "react";
+import { Theme } from "../constants/theme";
 
 export default function AllServices() {
     const router = useRouter();
@@ -22,130 +26,136 @@ export default function AllServices() {
         { name: "Elektronik", image: require("../assets/images/elektronik.png") },
     ];
 
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+    const translateY = useRef(new Animated.Value(20)).current;
+
+    useEffect(() => {
+        Animated.parallel([
+            Animated.timing(fadeAnim, {
+                toValue: 1,
+                duration: 500,
+                useNativeDriver: true,
+            }),
+            Animated.spring(translateY, {
+                toValue: 0,
+                friction: 8,
+                useNativeDriver: true,
+            })
+        ]).start();
+    }, []);
+
     return (
-        <SafeAreaView style={{ flex: 1 }}>
-            <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
-                <View style={styles.wrapper}>
-                    <View style={styles.phoneFrame}>
-                        <ScrollView contentContainerStyle={styles.scrollContent}>
-
-                            {/* BACK BUTTON */}
-                            <TouchableOpacity onPress={() => router.back()}>
-                                <Text style={styles.back}>←</Text>
-                            </TouchableOpacity>
-
-                            <Text style={styles.title}>All Services</Text>
-
-                            <View style={styles.grid}>
-                                {services.map((item, index) => {
-
-                                    const isLastOdd =
-                                        services.length % 3 === 1 &&
-                                        index === services.length - 1;
-
-                                    return (
-                                        <TouchableOpacity
-                                            key={index}
-                                            style={[
-                                                styles.card,
-                                                isLastOdd && styles.lastCardCenter
-                                            ]}
-                                            onPress={() => {
-                                                if (item.name === "AC") {
-                                                    router.push("/ac-services");
-                                                }
-                                            }}
-                                        >
-                                            <Image
-                                                source={item.image}
-                                                style={styles.serviceImage}
-                                            />
-
-                                            <Text style={styles.text}>
-                                                {item.name}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    );
-                                })}
-                            </View>
-
-                        </ScrollView>
-                    </View>
+        <SafeAreaView style={styles.safeArea}>
+            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+                
+                {/* Header */}
+                <View style={styles.header}>
+                    <TouchableOpacity 
+                        style={styles.backButton}
+                        onPress={() => router.back()}
+                    >
+                        <Ionicons name="chevron-back" size={24} color={Theme.colors.text} />
+                    </TouchableOpacity>
+                    <Text style={styles.title}>Semua Layanan</Text>
                 </View>
+
+                <Animated.View style={[styles.grid, { opacity: fadeAnim, transform: [{ translateY }] }]}>
+                    {services.map((item, index) => {
+                        const isAC = item.name === "AC";
+                        return (
+                            <TouchableOpacity
+                                key={index}
+                                style={styles.card}
+                                activeOpacity={0.7}
+                                onPress={() => {
+                                    if (isAC) {
+                                        router.push("/ac-services");
+                                    }
+                                }}
+                            >
+                                <View style={styles.iconWrapper}>
+                                    <Image
+                                        source={item.image}
+                                        style={styles.serviceImage}
+                                    />
+                                </View>
+                                <Text style={styles.text} numberOfLines={2}>
+                                    {item.name}
+                                </Text>
+                            </TouchableOpacity>
+                        );
+                    })}
+                </Animated.View>
+
             </ScrollView>
         </SafeAreaView>
     );
 }
 
 const styles = StyleSheet.create({
-    wrapper: {
+    safeArea: {
         flex: 1,
-        backgroundColor: "#FFFFFF",
-        alignItems: "center",
-        justifyContent: "center",
+        backgroundColor: Theme.colors.background,
     },
-
-    phoneFrame: {
-        width: "100%",
-        maxWidth: 420,
-        height: "95%",
-        backgroundColor: "#F4F1EA",
-        borderWidth: 8,
-        borderColor: "#E0D9CC",
-        borderRadius: 30,
-        overflow: "hidden",
-
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 10 },
-        shadowOpacity: 0.25,
-        shadowRadius: 20,
-        elevation: 15,
-    },
-
     scrollContent: {
-        padding: 20,
+        flexGrow: 1,
+        padding: Theme.spacing.lg,
     },
-
-    back: {
-        fontSize: 28,
+    header: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginBottom: Theme.spacing.xl,
+        marginTop: Theme.spacing.sm,
     },
-
+    backButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 20,
+        backgroundColor: Theme.colors.surface,
+        justifyContent: 'center',
+        alignItems: 'center',
+        ...Theme.shadows.sm,
+        marginRight: Theme.spacing.md,
+    },
     title: {
-        fontSize: 30,
-        fontWeight: "bold",
-        marginVertical: 20,
+        ...Theme.typography.h2,
+        color: Theme.colors.text,
     },
-
     grid: {
         flexDirection: "row",
         flexWrap: "wrap",
         justifyContent: "space-between",
-        backgroundColor: "#E8E2DA",
-        padding: 20,
-        borderRadius: 25,
+        backgroundColor: Theme.colors.surface,
+        padding: Theme.spacing.lg,
+        borderRadius: Theme.radius.xl,
+        ...Theme.shadows.md,
     },
-
     card: {
         width: "30%",
-        backgroundColor: "#F4F1EA",
-        padding: 15,
-        borderRadius: 15,
         alignItems: "center",
-        marginBottom: 15,
+        marginBottom: Theme.spacing.lg,
     },
-
-    lastCardCenter: {
-        marginLeft: "35%",
+    iconWrapper: {
+        width: 70,
+        height: 70,
+        backgroundColor: Theme.colors.inputBg,
+        borderRadius: Theme.radius.lg,
+        justifyContent: "center",
+        alignItems: "center",
+        marginBottom: Theme.spacing.sm,
+        borderWidth: 1,
+        borderColor: Theme.colors.border,
+        ...Theme.shadows.sm,
     },
-
     serviceImage: {
-        width: 45,
-        height: 45,
+        width: 36,
+        height: 36,
         resizeMode: "contain",
     },
-
     text: {
-        marginTop: 5,
-        fontSize: 12,
+        ...Theme.typography.caption,
+        color: Theme.colors.text,
+        textAlign: "center",
+        fontWeight: "600",
     },
 });

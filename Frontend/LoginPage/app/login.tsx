@@ -6,28 +6,108 @@ import {
     StyleSheet,
     Image,
     ScrollView,
+    Animated,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import LoginLoading from "./LoginLoading";
 
-// 🔥 ADD THIS
-import { signInWithEmailAndPassword } from "firebase/auth";
+import { signInWithEmailAndPassword, sendPasswordResetEmail } from "firebase/auth";
 import { auth } from "./_firebaseConfig";
+import { BASE_URL } from "../api";
+
+import { Theme } from "../constants/theme";
+import AnimatedButton from "../components/ui/AnimatedButton";
+import { useCustomAlert } from "../components/ui/GlobalAlertProvider";
 
 export default function Login() {
     const router = useRouter();
+    const { showAlert } = useCustomAlert();
 
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [loading, setLoading] = useState(false);
+    
+    const fadeAnim = useRef(new Animated.Value(0)).current;
+    const translateY = useRef(new Animated.Value(20)).current;
+
+    useEffect(() => {
+        Animated.parallel([
+            Animated.timing(fadeAnim, {
+                toValue: 1,
+                duration: 600,
+                useNativeDriver: true,
+            }),
+            Animated.spring(translateY, {
+                toValue: 0,
+                friction: 8,
+                useNativeDriver: true,
+            })
+        ]).start();
+    }, []);
+
+    const handleForgotPassword = async () => {
+        if (!email.trim()) {
+            showAlert({
+                title: "Masukkan Email",
+                message: "Silakan masukkan alamat email Anda terlebih dahulu di kolom email untuk melakukan reset password.",
+                type: "warning"
+            });
+            return;
+        }
+
+        setLoading(true);
+        try {
+            const emailClean = email.trim().toLowerCase();
+            
+            const response = await fetch(`${BASE_URL}/api/auth/check-email`, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "bypass-tunnel-reminder": "true"
+                },
+                body: JSON.stringify({ email: emailClean })
+            });
+
+            if (!response.ok) {
+                throw new Error("Gagal memeriksa status email.");
+            }
+
+            const checkRes = await response.json();
+
+            if (!checkRes.registered) {
+                showAlert({
+                    title: "Email Tidak Terdaftar",
+                    message: `Email ${emailClean} tidak terdaftar di sistem kami. Silakan periksa kembali atau buat akun baru.`,
+                    type: "error"
+                });
+                return;
+            }
+
+            await sendPasswordResetEmail(auth, emailClean);
+            showAlert({
+                title: "Reset Password Terkirim",
+                message: `Email pemulihan kata sandi telah dikirim ke ${emailClean}. Silakan periksa kotak masuk atau spam email Anda.`,
+                type: "success"
+            });
+
+        } catch (err: any) {
+            console.log("Forgot password error:", err.message);
+            showAlert({
+                title: "Gagal Reset Password",
+                message: err.message,
+                type: "error"
+            });
+        } finally {
+            setLoading(false);
+        }
+    };
 
     const handleLogin = async () => {
         try {
             setLoading(true);
 
-            // 🔥 Firebase login
             const userCredential = await signInWithEmailAndPassword(
                 auth,
                 email,
@@ -36,7 +116,6 @@ export default function Login() {
 
             console.log("Login success:", userCredential.user.uid);
 
-            // 👉 Navigate to admin page if user is admin, otherwise to homepage
             if (email.toLowerCase().trim() === "adminrapidrepairs@gmail.com") {
                 router.replace("/approve");
             } else {
@@ -44,182 +123,228 @@ export default function Login() {
             }
 
         } catch (err: any) {
-            console.error(err);
-            alert(err.message);
+            console.log("Login error:", err.message);
+            
+            const emailClean = email.trim().toLowerCase();
+            
+            if (err.code === "auth/invalid-email") {
+                showAlert({ title: "Login Gagal", message: "Format email tidak valid.", type: "error" });
+                return;
+            }
+            if (err.code === "auth/network-request-failed") {
+                showAlert({ title: "Login Gagal", message: "Koneksi internet bermasalah. Silakan coba lagi.", type: "error" });
+                return;
+            }
+
+            try {
+                const response = await fetch(`${BASE_URL}/api/auth/check-email`, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        "bypass-tunnel-reminder": "true"
+                    },
+                    body: JSON.stringify({ email: emailClean })
+                });
+
+                if (!response.ok) {
+                    throw new Error("Gagal memeriksa email");
+                }
+
+                const checkRes = await response.json();
+
+                if (!checkRes.registered) {
+                    showAlert({ title: "Login Gagal", message: "Email tidak terdaftar.", type: "error" });
+                } else {
+                    showAlert({ title: "Login Gagal", message: "Password salah.", type: "error" });
+                }
+            } catch (checkErr) {
+                showAlert({ title: "Login Gagal", message: "Email atau password salah.", type: "error" });
+            }
         } finally {
             setLoading(false);
         }
     };
 
     return (
-        <>
+        <View style={styles.container}>
             <LoginLoading visible={loading} />
 
-            <ScrollView contentContainerStyle={styles.container}>
-                {/* Logo */}
+            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
                 <Image
                     source={require("../assets/Logo/2.png")}
                     style={styles.logo}
                     resizeMode="contain"
                 />
 
-                <View style={styles.card}>
-                    {/* Back Button */}
+                <Animated.View style={[styles.card, { opacity: fadeAnim, transform: [{ translateY }] }]}>
                     <TouchableOpacity
                         style={styles.backButton}
                         onPress={() => router.back()}
                     >
-                        <Ionicons name="chevron-back" size={20} color="#333" />
+                        <Ionicons name="chevron-back" size={20} color={Theme.colors.textMuted} />
                         <Text style={styles.backText}>Kembali</Text>
                     </TouchableOpacity>
 
-                    {/* Header */}
                     <Text style={styles.title}>Masuk ke Akun</Text>
                     <Text style={styles.subtitle}>
                         Gunakan email dan password untuk Login
                     </Text>
 
-                    {/* Email */}
                     <View style={styles.field}>
                         <Text style={styles.label}>Email</Text>
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Cth: JohnDoe@gmail.com"
-                            placeholderTextColor="#CCC"
-                            value={email}
-                            onChangeText={setEmail}
-                        />
+                        <View style={styles.inputContainer}>
+                            <Ionicons name="mail-outline" size={20} color={Theme.colors.textMuted} style={styles.inputIcon} />
+                            <TextInput
+                                style={styles.input}
+                                placeholder="Cth: JohnDoe@gmail.com"
+                                placeholderTextColor={Theme.colors.textMuted}
+                                value={email}
+                                onChangeText={setEmail}
+                                keyboardType="email-address"
+                                autoCapitalize="none"
+                            />
+                        </View>
                     </View>
 
-                    {/* Password */}
                     <View style={styles.field}>
                         <Text style={styles.label}>Kata Sandi</Text>
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Masukan kata sandi anda"
-                            placeholderTextColor="#CCC"
-                            secureTextEntry
-                            value={password}
-                            onChangeText={setPassword}
-                        />
+                        <View style={styles.inputContainer}>
+                            <Ionicons name="lock-closed-outline" size={20} color={Theme.colors.textMuted} style={styles.inputIcon} />
+                            <TextInput
+                                style={styles.input}
+                                placeholder="Masukan kata sandi anda"
+                                placeholderTextColor={Theme.colors.textMuted}
+                                secureTextEntry
+                                value={password}
+                                onChangeText={setPassword}
+                            />
+                        </View>
+                        <TouchableOpacity
+                            style={styles.forgotBtn}
+                            onPress={handleForgotPassword}
+                        >
+                            <Text style={styles.forgotText}>Lupa Kata Sandi?</Text>
+                        </TouchableOpacity>
                     </View>
 
-                    {/* Button */}
-                    <TouchableOpacity
-                        style={[styles.button, loading && styles.disabledButton]}
+                    <AnimatedButton
+                        title="Masuk"
                         onPress={handleLogin}
-                        disabled={loading}
-                    >
-                        <Text style={styles.buttonText}>Masuk</Text>
-                    </TouchableOpacity>
+                        isLoading={loading}
+                        style={styles.button}
+                    />
 
-                    {/* Footer */}
-                    <TouchableOpacity
-                        style={styles.footer}
-                        onPress={() => router.push("/register")}
-                    >
-                        <Text style={styles.footerText}>
-                            Belum punya Akun?{" "}
+                    <View style={styles.footer}>
+                        <Text style={styles.footerText}>Belum punya Akun? </Text>
+                        <TouchableOpacity onPress={() => router.push("/register")}>
                             <Text style={styles.footerLink}>Daftar</Text>
-                        </Text>
-                    </TouchableOpacity>
-                </View>
+                        </TouchableOpacity>
+                    </View>
+                </Animated.View>
             </ScrollView>
-        </>
+        </View>
     );
 }
 
 const styles = StyleSheet.create({
     container: {
+        flex: 1,
+        backgroundColor: Theme.colors.background,
+    },
+    scrollContent: {
         flexGrow: 1,
-        backgroundColor: "white",
         alignItems: "center",
         paddingTop: 60,
         paddingBottom: 40,
+        paddingHorizontal: Theme.spacing.lg,
     },
     logo: {
-        width: 140,
-        height: 140,
-        marginBottom: 40,
+        width: 120,
+        height: 120,
+        marginBottom: Theme.spacing.xl,
     },
     card: {
-        width: "90%",
+        width: "100%",
         maxWidth: 450,
-        backgroundColor: "white",
-        padding: 40,
-        borderRadius: 30,
-        shadowColor: "#000",
-        shadowOpacity: 0.1,
-        shadowRadius: 20,
-        elevation: 8,
+        backgroundColor: Theme.colors.surface,
+        padding: Theme.spacing.xl,
+        borderRadius: Theme.radius.xl,
+        ...Theme.shadows.md,
     },
     backButton: {
         flexDirection: "row",
         alignItems: "center",
-        marginBottom: 20,
+        marginBottom: Theme.spacing.md,
+        alignSelf: "flex-start",
     },
     backText: {
-        color: "#333",
+        color: Theme.colors.textMuted,
         fontSize: 14,
-        fontWeight: "400",
+        fontWeight: "500",
         marginLeft: 4,
     },
     title: {
-        fontSize: 22,
-        fontWeight: "700",
-        color: "#000",
-        marginBottom: 6,
+        ...Theme.typography.h2,
+        color: Theme.colors.primaryDark,
+        marginBottom: Theme.spacing.xs,
     },
     subtitle: {
-        fontSize: 14,
-        color: "#BBB",
-        marginBottom: 35,
+        ...Theme.typography.body,
+        color: Theme.colors.textMuted,
+        marginBottom: Theme.spacing.xl,
     },
     field: {
-        marginBottom: 25,
+        marginBottom: Theme.spacing.lg,
         width: "100%",
     },
     label: {
-        fontSize: 14,
-        fontWeight: "700",
-        marginBottom: 6,
-        color: "#000",
+        ...Theme.typography.subtitle,
+        color: Theme.colors.text,
+        marginBottom: Theme.spacing.sm,
+    },
+    inputContainer: {
+        flexDirection: "row",
+        alignItems: "center",
+        backgroundColor: Theme.colors.inputBg,
+        borderRadius: Theme.radius.md,
+        borderWidth: 1,
+        borderColor: Theme.colors.border,
+        paddingHorizontal: Theme.spacing.md,
+    },
+    inputIcon: {
+        marginRight: Theme.spacing.sm,
     },
     input: {
-        borderBottomWidth: 1,
-        borderBottomColor: "#EEE",
-        paddingVertical: 8,
-        fontSize: 14,
-        color: "#333",
+        flex: 1,
+        height: 50,
+        ...Theme.typography.body,
+        color: Theme.colors.text,
+    },
+    forgotBtn: {
+        alignSelf: "flex-end",
+        marginTop: Theme.spacing.sm,
+    },
+    forgotText: {
+        ...Theme.typography.caption,
+        color: Theme.colors.primary,
+        fontWeight: "600",
     },
     button: {
-        marginTop: 20,
-        backgroundColor: "#B3875E",
-        opacity: 0.8,
-        paddingVertical: 18,
-        borderRadius: 35,
-        alignItems: "center",
-        width: "100%",
-    },
-    disabledButton: {
-        backgroundColor: "#D2B48C",
-    },
-    buttonText: {
-        color: "white",
-        fontSize: 16,
-        fontWeight: "700",
+        marginTop: Theme.spacing.md,
     },
     footer: {
-        marginTop: 20,
+        marginTop: Theme.spacing.xl,
+        flexDirection: "row",
+        justifyContent: "center",
         alignItems: "center",
     },
     footerText: {
-        fontSize: 12,
-        color: "#666",
+        ...Theme.typography.body,
+        color: Theme.colors.textMuted,
     },
     footerLink: {
+        ...Theme.typography.body,
+        color: Theme.colors.primary,
         fontWeight: "700",
-        color: "#333",
-        textDecorationLine: "underline",
     },
 });
