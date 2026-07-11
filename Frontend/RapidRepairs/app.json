@@ -12,6 +12,7 @@
       "supportsTablet": true
     },
     "android": {
+      "package": "com.jason.loginpage",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -27,6 +28,12 @@
     },
     "plugins": [
       "expo-router",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Akses kamera diperlukan untuk verifikasi wajah."
+        }
+      ],
       [
         "expo-splash-screen",
         {
@@ -46,6 +53,13 @@
     "experiments": {
       "typedRoutes": true,
       "reactCompiler": true
-    }
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "32785e83-3a9f-4d5d-8870-ea2a6381df86"
+      }
+    },
+    "owner": "jasonjt"
   }
 }

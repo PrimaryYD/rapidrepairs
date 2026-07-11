@@ -28,6 +28,8 @@ export default function RateUserScreen() {
     const [rating, setRating] = useState(0);
     const [selectedTags, setSelectedTags] = useState<string[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [showCustomReview, setShowCustomReview] = useState(false);
+    const [customReviewText, setCustomReviewText] = useState("");
 
     const quickTags = ["Pelanggan Ramah", "Sesuai Titik Maps", "Responsif", "Komunikasi Baik"];
     const { showAlert } = useCustomAlert();
@@ -212,7 +214,32 @@ export default function RateUserScreen() {
                                 </TouchableOpacity>
                             );
                         })}
+                        {/* Lainnya button */}
+                        <TouchableOpacity
+                            style={[styles.tagPill, showCustomReview && styles.tagPillSelected]}
+                            onPress={() => setShowCustomReview(!showCustomReview)}
+                            activeOpacity={0.8}
+                        >
+                            <Text style={[styles.tagText, showCustomReview && styles.tagTextSelected]}>
+                                Lainnya
+                            </Text>
+                        </TouchableOpacity>
                     </View>
+
+                    {/* EDITABLE REVIEW COMMENT */}
+                    {showCustomReview && (
+                        <View style={styles.customReviewContainer}>
+                            <TextInput
+                                style={styles.customReviewInput}
+                                placeholder="Tulis kritik atau saran Anda di sini..."
+                                placeholderTextColor="#999"
+                                multiline
+                                numberOfLines={4}
+                                value={customReviewText}
+                                onChangeText={setCustomReviewText}
+                            />
+                        </View>
+                    )}
 
                     {/* SUBMIT BUTTON */}
                     <AnimatedButton
@@ -359,7 +386,24 @@ const styles = StyleSheet.create({
         flexWrap: "wrap",
         justifyContent: "center",
         gap: 10,
-        marginBottom: 35,
+        marginBottom: 20,
+    },
+    customReviewContainer: {
+        width: "100%",
+        marginBottom: 20,
+    },
+    customReviewInput: {
+        width: "100%",
+        minHeight: 100,
+        backgroundColor: "#FAF6F0",
+        borderRadius: 16,
+        paddingHorizontal: 16,
+        paddingVertical: 12,
+        fontSize: 14,
+        color: "#333",
+        borderWidth: 1,
+        borderColor: "#EAE6DF",
+        textAlignVertical: "top",
     },
     tagPill: {
         backgroundColor: Theme.colors.surface,

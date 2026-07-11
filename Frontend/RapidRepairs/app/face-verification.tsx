@@ -77,9 +77,9 @@ export default function FaceVerification() {
             } else {
                 verifyIdentity(newImages);
             }
-        } catch (err) {
+        } catch (err: any) {
             console.error("Capture error:", err);
-            Alert.alert("Error", "Gagal mengambil gambar");
+            Alert.alert("Error", `Gagal mengambil gambar: ${err?.message || err}`);
         } finally {
             setCapturing(false);
         }
