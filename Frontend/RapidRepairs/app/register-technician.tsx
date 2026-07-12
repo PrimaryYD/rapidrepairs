@@ -122,6 +122,7 @@ export default function RegisterTechnician() {
 
     // === Step 3 ===
     const [selectedSkills, setSelectedSkills] = useState<string[]>(["Cuci AC", "Isi Freon", "Bongkar Pasang"]);
+    const [expandedSkill, setExpandedSkill] = useState<string | null>(null);
     const [employmentStatus, setEmploymentStatus] = useState("Freelance");
     const [otherEmploymentStatus, setOtherEmploymentStatus] = useState("");
     const [bankName, setBankName] = useState("");
@@ -141,6 +142,17 @@ export default function RegisterTechnician() {
         "AC (Air Conditioner)": ["Cuci AC", "Isi Freon", "Bongkar Pasang", "Service Besar"],
         "Kulkas / Lemari Es": ["Isi Freon", "Ganti Kompresor", "Perbaikan Modul"],
         "Mesin Cuci": ["Ganti Dinamo", "Perbaikan Modul", "Pembersihan Tabung"],
+    };
+
+    const SKILL_DESCRIPTIONS: any = {
+        "Cuci AC": "Pembersihan unit indoor dan outdoor untuk menjaga AC tetap dingin dan bersih.",
+        "Isi Freon": "Penambahan freon agar pendinginan kembali maksimal.",
+        "Bongkar Pasang": "Pemindahan atau pemasangan unit baru sesuai standar keamanan.",
+        "Service Besar": "Pemeriksaan dan perbaikan menyeluruh pada semua komponen.",
+        "Ganti Kompresor": "Penggantian kompresor yang rusak dengan yang baru.",
+        "Perbaikan Modul": "Pengecekan dan perbaikan pada papan sirkuit elektronik utama.",
+        "Ganti Dinamo": "Penggantian motor dinamo penggerak utama pada mesin cuci.",
+        "Pembersihan Tabung": "Pembersihan kerak, kotoran, dan jamur pada tabung mesin cuci."
     };
 
     const pickImage = async (setImage: any, setRatio?: any) => {
@@ -197,7 +209,8 @@ export default function RegisterTechnician() {
                     phone,
                     location,
                     origSpecialization: specialization,
-                    experience
+                    experience,
+                    testScore: params.testScore || ""
                 }
             });
         } else if (step === 2) {
@@ -606,32 +619,52 @@ export default function RegisterTechnician() {
                 {step === 3 && (
                     <View style={styles.stepContainer}>
                         <Text style={styles.label}>
-                            Checklist Keahlian {specialization ? `<${specialization}>` : ""}
+                            Checklist Keahlian {specialization ? `${specialization}` : ""}
                         </Text>
 
                         <View style={styles.skillsContainer}>
                             {(SKILLS_MAP[specialization] || SKILLS_MAP["AC (Air Conditioner)"]).map((skill: string) => {
                                 const isChecked = selectedSkills.includes(skill);
+                                const isExpanded = expandedSkill === skill;
                                 return (
-                                    <TouchableOpacity
-                                        key={skill}
-                                        style={styles.skillItem}
-                                        onPress={() => {
-                                            if (isChecked) {
-                                                setSelectedSkills(selectedSkills.filter(s => s !== skill));
-                                            } else {
-                                                setSelectedSkills([...selectedSkills, skill]);
-                                            }
-                                        }}
-                                    >
-                                        <View style={styles.skillLeft}>
-                                            <View style={[styles.checkbox, isChecked && styles.checkboxActive]}>
-                                                {isChecked && <Ionicons name="checkmark" size={14} color="#FFF" />}
-                                            </View>
-                                            <Text style={styles.skillText}>{skill}</Text>
+                                    <View key={skill} style={[styles.skillItem, { flexDirection: 'column', alignItems: 'flex-start' }]}>
+                                        <View style={{ flexDirection: 'row', width: '100%', justifyContent: 'space-between', alignItems: 'center' }}>
+                                            <TouchableOpacity
+                                                style={[styles.skillLeft, { flex: 1 }]}
+                                                onPress={() => {
+                                                    if (isChecked) {
+                                                        setSelectedSkills(selectedSkills.filter(s => s !== skill));
+                                                    } else {
+                                                        setSelectedSkills([...selectedSkills, skill]);
+                                                    }
+                                                }}
+                                            >
+                                                <View style={[styles.checkbox, isChecked && styles.checkboxActive]}>
+                                                    {isChecked && <Ionicons name="checkmark" size={14} color="#FFF" />}
+                                                </View>
+                                                <Text style={styles.skillText}>{skill}</Text>
+                                            </TouchableOpacity>
+                                            
+                                            <TouchableOpacity 
+                                                onPress={() => setExpandedSkill(isExpanded ? null : skill)}
+                                                style={{ padding: 4 }}
+                                            >
+                                                <Ionicons name={isExpanded ? "chevron-up" : "chevron-down"} size={20} color="#CCC" />
+                                            </TouchableOpacity>
                                         </View>
-                                        <Ionicons name="chevron-down" size={20} color="#CCC" />
-                                    </TouchableOpacity>
+                                        
+                                        {isExpanded && SKILL_DESCRIPTIONS[skill] && (
+                                            <Text style={{ 
+                                                marginTop: 8, 
+                                                marginLeft: 32, // align with text, bypassing checkbox
+                                                color: Theme.colors.textMuted, 
+                                                fontSize: 13,
+                                                lineHeight: 18
+                                            }}>
+                                                {SKILL_DESCRIPTIONS[skill]}
+                                            </Text>
+                                        )}
+                                    </View>
                                 );
                             })}
                         </View>

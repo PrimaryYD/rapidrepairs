@@ -26,19 +26,52 @@ export default function TrackingTech() {
     const [order, setOrder] = useState<any>(null);
     const [techLocation, setTechLocation] = useState<any>(null);
     const mapRef = useRef<any>(null);
-    const { showAlert } = useCustomAlert();
+    const [locationPermissionGranted, setLocationPermissionGranted] = useState(true);
+    const { showAlert, showConfirm } = useCustomAlert();
+
+    const requestLocationPermission = async (forcePopup = false) => {
+        const current = await Location.getForegroundPermissionsAsync();
+        
+        if (current.status === "granted") {
+            setLocationPermissionGranted(true);
+            return;
+        }
+
+        if (current.status === "undetermined" || forcePopup) {
+            showConfirm({
+                title: "Akses Lokasi",
+                message: "Rapid Repairs membutuhkan izin lokasi untuk menampilkan rute Anda ke pelanggan.",
+                onConfirm: async () => {
+                    const { status } = await Location.requestForegroundPermissionsAsync();
+                    if (status === "granted") {
+                        setLocationPermissionGranted(true);
+                    } else {
+                        showAlert({
+                            title: "Izin Ditolak",
+                            message: "Izin lokasi diperlukan. Anda dapat mengaktifkannya di Pengaturan HP Anda.",
+                            type: "warning"
+                        });
+                        setLocationPermissionGranted(false);
+                    }
+                },
+                onCancel: () => setLocationPermissionGranted(false)
+            });
+        } else {
+            setLocationPermissionGranted(false);
+        }
+    };
+
+    useEffect(() => {
+        requestLocationPermission();
+    }, []);
 
     // 📍 TRACK TECHNICIAN LOCATION
     useEffect(() => {
+        if (!locationPermissionGranted) return;
         let watchId: any;
 
         (async () => {
             try {
-                let { status } = await Location.requestForegroundPermissionsAsync();
-                if (status !== "granted") {
-                    showAlert({ title: "Izin Diperlukan", message: "Izin lokasi diperlukan.", type: "warning" });
-                    return;
-                }
 
                 watchId = await Location.watchPositionAsync(
                     {
@@ -70,7 +103,7 @@ export default function TrackingTech() {
         return () => {
             if (watchId) watchId.remove();
         };
-    }, [orderId]);
+    }, [orderId, locationPermissionGranted]);
 
     // 🔥 Auto fit map to show both tech and customer
     useEffect(() => {
@@ -115,6 +148,22 @@ export default function TrackingTech() {
             params: { orderId }
         });
     };
+
+    if (!locationPermissionGranted && !techLocation) {
+        return (
+            <View style={styles.loading}>
+                <Ionicons name="warning" size={40} color={Theme.colors.warning} style={{ marginBottom: 16 }} />
+                <Text style={{ ...Theme.typography.body, color: Theme.colors.text, textAlign: 'center' }}>
+                    Lokasi tidak ditemukan.{"\n"}Pastikan Anda telah memberikan izin lokasi.
+                </Text>
+                <AnimatedButton
+                    title="Izinkan Lokasi"
+                    onPress={() => requestLocationPermission(true)}
+                    style={{ marginTop: 24, width: 200 }}
+                />
+            </View>
+        );
+    }
 
     if (!order) {
         return (

@@ -3,7 +3,7 @@ import CustomAlert, { AlertOptions } from './CustomAlert';
 
 interface GlobalAlertContextType {
   showAlert: (options: AlertOptions) => void;
-  showConfirm: (options: AlertOptions & { onConfirm?: () => void }) => void;
+  showConfirm: (options: AlertOptions & { onConfirm?: () => void, onCancel?: () => void }) => void;
   hideAlert: () => void;
 }
 
@@ -18,11 +18,11 @@ export function GlobalAlertProvider({ children }: { children: React.ReactNode })
     setAlertVisible(true);
   }, []);
 
-  const showConfirm = useCallback((options: AlertOptions & { onConfirm?: () => void }) => {
+  const showConfirm = useCallback((options: AlertOptions & { onConfirm?: () => void, onCancel?: () => void }) => {
     showAlert({
       ...options,
       buttons: [
-        { text: "Batal", style: "cancel" },
+        { text: "Batal", onPress: options.onCancel, style: "cancel" },
         { text: "Ya", onPress: options.onConfirm, style: "default" }
       ]
     });

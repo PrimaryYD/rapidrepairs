@@ -12,7 +12,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { useState, useRef, useEffect } from "react";
 import { Ionicons } from "@expo/vector-icons";
 
-// 🔥 ADD FIREBASE
+// ADD FIREBASE
 import { createUserWithEmailAndPassword } from "firebase/auth";
 import { auth } from "./_firebaseConfig";
 import { BASE_URL } from "../api";
@@ -24,7 +24,7 @@ import { useCustomAlert } from "../components/ui/GlobalAlertProvider";
 export default function RegisterPassword() {
     const router = useRouter();
     const params = useLocalSearchParams();
-    const { name, email, location, address } = params;
+    const { name, email, location, address, role } = params;
     const { showAlert } = useCustomAlert();
 
     const [password, setPassword] = useState("");
@@ -182,12 +182,20 @@ export default function RegisterPassword() {
                                 🎉 Berhasil !
                             </Text>
                             <Text style={[styles.subtitle, { textAlign: "center" }]}>
-                                Akun anda telah dibuat. Silahkan Login kembali!
+                                {role === "technician" 
+                                    ? "Akun anda telah dibuat. Lanjutkan pendaftaran sebagai Teknisi!" 
+                                    : "Akun anda telah dibuat. Silahkan Login kembali!"}
                             </Text>
 
                             <AnimatedButton
-                                title="Menuju Login"
-                                onPress={() => router.replace("/login")}
+                                title={role === "technician" ? "Lanjut Daftar Teknisi" : "Menuju Login"}
+                                onPress={() => {
+                                    if (role === "technician") {
+                                        router.replace("/register-technician");
+                                    } else {
+                                        router.replace("/login");
+                                    }
+                                }}
                                 style={styles.button}
                             />
                         </Animated.View>

@@ -168,5 +168,6 @@ const styles = StyleSheet.create({
   },
   button: {
     height: 44, // Slightly smaller than default AnimatedButton
+    paddingHorizontal: 8, // Very tight padding to ensure text doesn't wrap in half-width containers
   },
 });

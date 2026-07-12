@@ -23,7 +23,7 @@ import AnimatedButton from "../components/ui/AnimatedButton";
 
 export default function Tracking() {
     const router = useRouter();
-    const { showAlert } = useCustomAlert();
+    const { showAlert, showConfirm } = useCustomAlert();
     const mapRef = useRef<any>(null);
 
     const [location, setLocation] = useState<any>(null);
@@ -68,36 +68,57 @@ export default function Tracking() {
     };
 
     /* ================= AMBIL LOKASI ================= */
-    useEffect(() => {
-        (async () => {
-            try {
-                let { status } = await Location.requestForegroundPermissionsAsync();
-                if (status !== "granted") {
-                    setLoadingLocation(false);
-                    showAlert({
-                        title: "Izin Ditolak",
-                        message: "Izin lokasi diperlukan untuk menggunakan layanan ini.",
-                        type: "warning"
-                    });
-                    return;
-                }
+    const fetchLocation = async () => {
+        try {
+            setLoadingLocation(true);
+            let loc = await Location.getCurrentPositionAsync({
+                accuracy: Location.Accuracy.Balanced,
+            });
+            setLocation(loc.coords);
+            getAddressFromCoords(loc.coords.latitude, loc.coords.longitude);
+        } catch (err) {
+            console.log("Location error:", err);
+            showAlert({ title: "Gagal Mengambil Lokasi", message: "Pastikan GPS Anda aktif.", type: "error" });
+        } finally {
+            setLoadingLocation(false);
+        }
+    };
 
-                let loc = await Location.getCurrentPositionAsync({
-                    accuracy: Location.Accuracy.Balanced,
-                });
-                setLocation(loc.coords);
-                getAddressFromCoords(loc.coords.latitude, loc.coords.longitude);
-                setLoadingLocation(false);
-            } catch (err) {
-                console.log("Location error:", err);
-                setLoadingLocation(false);
-                showAlert({
-                    title: "Gagal Mengambil Lokasi",
-                    message: "Gagal mengambil lokasi. Pastikan GPS aktif.",
-                    type: "error"
-                });
-            }
-        })();
+    const requestLocationPermission = async (forcePopup = false) => {
+        const current = await Location.getForegroundPermissionsAsync();
+        
+        if (current.status === "granted") {
+            await fetchLocation();
+            return;
+        }
+
+        if (current.status === "undetermined" || forcePopup) {
+            showConfirm({
+                title: "Akses Lokasi",
+                message: "Rapid Repairs membutuhkan izin lokasi untuk menampilkan peta dan menemukan teknisi terdekat dari Anda.",
+                onConfirm: async () => {
+                    const { status } = await Location.requestForegroundPermissionsAsync();
+                    if (status === "granted") {
+                        await fetchLocation();
+                    } else {
+                        showAlert({
+                            title: "Izin Ditolak",
+                            message: "Izin lokasi diperlukan. Anda dapat mengaktifkannya di Pengaturan HP Anda.",
+                            type: "warning"
+                        });
+                        setLoadingLocation(false);
+                    }
+                },
+                onCancel: () => setLoadingLocation(false) // just hide loader if denied
+            });
+        } else {
+            // Already denied, just hide loader to show the fallback UI
+            setLoadingLocation(false);
+        }
+    };
+
+    useEffect(() => {
+        requestLocationPermission(false);
     }, []);
 
     const getAddressFromCoords = async (lat: number, lng: number) => {
@@ -245,9 +266,14 @@ export default function Tracking() {
                     Lokasi tidak ditemukan.{"\n"}Pastikan Anda telah memberikan izin lokasi.
                 </Text>
                 <AnimatedButton
+                    title="Izinkan Lokasi"
+                    onPress={() => requestLocationPermission(true)}
+                    style={{ marginTop: 24, width: 200 }}
+                />
+                <AnimatedButton
                     title="Kembali"
                     onPress={() => router.back()}
-                    style={{ marginTop: 24, width: 200 }}
+                    style={{ marginTop: 12, width: 200 }}
                     variant="outline"
                 />
             </View>
@@ -261,7 +287,6 @@ export default function Tracking() {
                 <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
                     <Ionicons name="chevron-back" size={24} color={Theme.colors.text} />
                 </TouchableOpacity>
-                <Text style={styles.headerTitle}>Layanan AC</Text>
             </View>
 
             <View style={{ flex: 1 }}>
@@ -287,6 +312,13 @@ export default function Tracking() {
                         <Ionicons name="location" size={20} color={Theme.colors.primary} style={{ marginRight: 10 }} />
                         <Text style={styles.addressText} numberOfLines={2}>
                             {address || "Mengambil lokasi..."}
+                        </Text>
+                    </View>
+
+                    <View style={styles.infoBox}>
+                        <Ionicons name="information-circle" size={20} color={Theme.colors.warning} style={{ marginTop: 2, marginRight: 10 }} />
+                        <Text style={styles.infoText}>
+                            Jika teknisi datang ke lokasi Anda tanpa melakukan perbaikan, Anda akan tetap dikenakan biaya kunjungan tetap sebesar Rp50.000 untuk setiap Layanan AC.
                         </Text>
                     </View>
 
@@ -371,7 +403,22 @@ const styles = StyleSheet.create({
         ...Theme.typography.body,
         color: Theme.colors.text,
     },
+    infoBox: {
+        flexDirection: 'row',
+        backgroundColor: Theme.colors.warning + "15",
+        padding: Theme.spacing.md,
+        borderRadius: Theme.radius.lg,
+        marginTop: Theme.spacing.md,
+        borderWidth: 1,
+        borderColor: Theme.colors.warning + "30",
+    },
+    infoText: {
+        flex: 1,
+        ...Theme.typography.caption,
+        color: Theme.colors.text,
+        lineHeight: 18,
+    },
     orderBtn: {
-        marginTop: Theme.spacing.xl,
+        marginTop: Theme.spacing.lg,
     },
 });

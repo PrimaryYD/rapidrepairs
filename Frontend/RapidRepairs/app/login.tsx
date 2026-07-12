@@ -56,7 +56,6 @@ export default function Login() {
             });
             return;
         }
-
         setLoading(true);
         try {
             const emailClean = email.trim().toLowerCase();
@@ -77,30 +76,37 @@ export default function Login() {
             const checkRes = await response.json();
 
             if (!checkRes.registered) {
-                showAlert({
-                    title: "Email Tidak Terdaftar",
-                    message: `Email ${emailClean} tidak terdaftar di sistem kami. Silakan periksa kembali atau buat akun baru.`,
-                    type: "error"
-                });
+                setLoading(false);
+                setTimeout(() => {
+                    showAlert({
+                        title: "Email Tidak Terdaftar",
+                        message: `Alamat email ${emailClean} belum terdaftar di Rapid Repairs. Silakan daftar (sign up) terlebih dahulu.`,
+                        type: "warning"
+                    });
+                }, 300);
                 return;
             }
 
             await sendPasswordResetEmail(auth, emailClean);
-            showAlert({
-                title: "Reset Password Terkirim",
-                message: `Email pemulihan kata sandi telah dikirim ke ${emailClean}. Silakan periksa kotak masuk atau spam email Anda.`,
-                type: "success"
-            });
+            setLoading(false);
+            setTimeout(() => {
+                showAlert({
+                    title: "Reset Password Terkirim",
+                    message: `Email pemulihan kata sandi telah dikirim ke ${emailClean}. Silakan periksa kotak masuk atau spam email Anda.`,
+                    type: "success"
+                });
+            }, 300);
 
         } catch (err: any) {
             console.log("Forgot password error:", err.message);
-            showAlert({
-                title: "Gagal Reset Password",
-                message: err.message,
-                type: "error"
-            });
-        } finally {
             setLoading(false);
+            setTimeout(() => {
+                showAlert({
+                    title: "Gagal Reset Password",
+                    message: err.message,
+                    type: "error"
+                });
+            }, 300);
         }
     };
 
@@ -128,11 +134,17 @@ export default function Login() {
             const emailClean = email.trim().toLowerCase();
             
             if (err.code === "auth/invalid-email") {
-                showAlert({ title: "Login Gagal", message: "Format email tidak valid.", type: "error" });
+                setLoading(false);
+                setTimeout(() => {
+                    showAlert({ title: "Login Gagal", message: "Format email tidak valid.", type: "error" });
+                }, 300);
                 return;
             }
             if (err.code === "auth/network-request-failed") {
-                showAlert({ title: "Login Gagal", message: "Koneksi internet bermasalah. Silakan coba lagi.", type: "error" });
+                setLoading(false);
+                setTimeout(() => {
+                    showAlert({ title: "Login Gagal", message: "Koneksi internet bermasalah. Silakan coba lagi.", type: "error" });
+                }, 300);
                 return;
             }
 
@@ -152,16 +164,24 @@ export default function Login() {
 
                 const checkRes = await response.json();
 
-                if (!checkRes.registered) {
-                    showAlert({ title: "Login Gagal", message: "Email tidak terdaftar.", type: "error" });
-                } else {
-                    showAlert({ title: "Login Gagal", message: "Password salah.", type: "error" });
-                }
+                setLoading(false);
+                setTimeout(() => {
+                    if (!checkRes.registered) {
+                        showAlert({ 
+                            title: "Email Tidak Terdaftar", 
+                            message: `Alamat email ${emailClean} belum terdaftar di Rapid Repairs. Silakan daftar (sign up) terlebih dahulu.`, 
+                            type: "warning" 
+                        });
+                    } else {
+                        showAlert({ title: "Login Gagal", message: "Password salah.", type: "error" });
+                    }
+                }, 300);
             } catch (checkErr) {
-                showAlert({ title: "Login Gagal", message: "Email atau password salah.", type: "error" });
+                setLoading(false);
+                setTimeout(() => {
+                    showAlert({ title: "Login Gagal", message: "Email atau password salah.", type: "error" });
+                }, 300);
             }
-        } finally {
-            setLoading(false);
         }
     };
 
@@ -179,7 +199,7 @@ export default function Login() {
                 <Animated.View style={[styles.card, { opacity: fadeAnim, transform: [{ translateY }] }]}>
                     <TouchableOpacity
                         style={styles.backButton}
-                        onPress={() => router.back()}
+                        onPress={() => router.push("/welcome")}
                     >
                         <Ionicons name="chevron-back" size={20} color={Theme.colors.textMuted} />
                         <Text style={styles.backText}>Kembali</Text>
@@ -236,7 +256,7 @@ export default function Login() {
 
                     <View style={styles.footer}>
                         <Text style={styles.footerText}>Belum punya Akun? </Text>
-                        <TouchableOpacity onPress={() => router.push("/register")}>
+                        <TouchableOpacity onPress={() => router.push("/select-role?mode=register")}>
                             <Text style={styles.footerLink}>Daftar</Text>
                         </TouchableOpacity>
                     </View>

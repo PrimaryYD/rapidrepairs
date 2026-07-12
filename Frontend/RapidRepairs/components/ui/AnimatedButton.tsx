@@ -126,10 +126,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     flexDirection: 'row',
-    paddingHorizontal: Theme.spacing.xl,
+    paddingHorizontal: Theme.spacing.lg, // Reduced from xl to lg to prevent wrapping in tight spaces
     ...Theme.shadows.sm,
   },
   text: {
     ...Theme.typography.button,
+    textAlign: 'center',
   },
 });

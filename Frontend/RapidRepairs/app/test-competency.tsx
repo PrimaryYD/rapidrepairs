@@ -1,16 +1,18 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
     View,
     Text,
     StyleSheet,
     TouchableOpacity,
-    ScrollView,
-    SafeAreaView
+    ScrollView
 } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Theme } from "../constants/theme";
 import AnimatedButton from "../components/ui/AnimatedButton";
+import { auth, db } from "./_firebaseConfig";
+import { doc, getDoc, updateDoc } from "firebase/firestore";
 
 const QUESTIONS_DATA: any = {
     "AC": [
@@ -78,6 +80,7 @@ const QUESTIONS_DATA: any = {
 export default function TestCompetency() {
     const router = useRouter();
     const params = useLocalSearchParams();
+    const insets = useSafeAreaInsets();
 
     // Spec selected in step 1
     const specialization = (params.specialization as string) || "AC";
@@ -89,28 +92,78 @@ export default function TestCompetency() {
     const [isFinished, setIsFinished] = useState(false);
     const [answers, setAnswers] = useState<any[]>([]);
 
-    const handleNext = () => {
+    useEffect(() => {
+        if (params.testScore && parseInt(params.testScore as string) >= 80) {
+            setScore(parseInt(params.testScore as string));
+            setIsFinished(true);
+            setCurrentIndex(9); // set to max to fill progress bar visually
+        }
+    }, [params.testScore]);
+
+    const handleRetake = () => {
+        setCurrentIndex(0);
+        setSelectedOption(null);
+        setScore(0);
+        setIsFinished(false);
+        setAnswers([]);
+    };
+
+    const handleNext = async () => {
         if (selectedOption === null) return;
 
         const currentQ = questions[currentIndex];
+        const isCorrect = selectedOption === currentQ.a;
         const newAnswer = {
             question: currentQ.q,
             selected: currentQ.options[selectedOption],
             correct: currentQ.options[currentQ.a],
-            isCorrect: selectedOption === currentQ.a
+            isCorrect
         };
         const updatedAnswers = [...answers, newAnswer];
         setAnswers(updatedAnswers);
 
+        const finalScore = isCorrect ? score + 10 : score;
         // Check answer
-        if (selectedOption === currentQ.a) {
-            setScore(score + 10);
+        if (isCorrect) {
+            setScore(finalScore);
         }
 
         if (currentIndex < questions.length - 1) {
             setCurrentIndex(currentIndex + 1);
             setSelectedOption(null);
         } else {
+            // FINISHED TEST
+            if (finalScore < 80) {
+                try {
+                    const user = auth.currentUser;
+                    if (user) {
+                        const userRef = doc(db, "users", user.uid);
+                        const userSnap = await getDoc(userRef);
+                        let attempts = 1;
+                        if (userSnap.exists()) {
+                            attempts = (userSnap.data().techTestAttempts || 0) + 1;
+                        }
+                        
+                        if (attempts >= 2) {
+                            // Lockout for 10 days
+                            const lockoutDate = new Date();
+                            lockoutDate.setDate(lockoutDate.getDate() + 10);
+                            await updateDoc(userRef, {
+                                techTestAttempts: attempts,
+                                techLockoutUntil: lockoutDate.toISOString()
+                            });
+                            router.replace("/lockout-teknisi");
+                            return;
+                        } else {
+                            await updateDoc(userRef, {
+                                techTestAttempts: attempts
+                            });
+                        }
+                    }
+                } catch (error) {
+                    console.log("Error updating test attempts", error);
+                }
+            }
             setIsFinished(true);
         }
     };
@@ -129,7 +182,7 @@ export default function TestCompetency() {
     };
 
     return (
-        <SafeAreaView style={styles.container}>
+        <SafeAreaView style={styles.container} edges={['top']}>
             <View style={styles.header}>
                 <Text style={styles.headerTitle}>Uji Kompetensi: {specialization}</Text>
                 <Text style={styles.headerSubtitle}>Pertanyaan {currentIndex + 1} dari 10</Text>
@@ -169,7 +222,7 @@ export default function TestCompetency() {
                 </View>
             </ScrollView>
 
-            <View style={styles.footer}>
+            <View style={[styles.footer, { paddingBottom: Math.max(insets.bottom, 20) }]}>
                 {!isFinished ? (
                     <AnimatedButton
                         title="Lanjutkan"
@@ -182,13 +235,28 @@ export default function TestCompetency() {
                     <View style={styles.finishContainer}>
                         <View style={styles.resultBadge}>
                             <Text style={styles.resultTitle}>Skor Anda</Text>
-                            <Text style={styles.resultScore}>{score}/100</Text>
+                            <Text style={[styles.resultScore, { color: score >= 80 ? Theme.colors.success : Theme.colors.error }]}>{score}/100</Text>
                         </View>
-                        <AnimatedButton
-                            title="Selesai & Lanjut Pendaftaran"
-                            onPress={handleFinish}
-                            style={{ width: '100%' }}
-                        />
+                        {score >= 80 ? (
+                            <>
+                                <Text style={{ textAlign: 'center', marginBottom: 20, color: Theme.colors.text }}>Selamat! Anda memenuhi standar kelulusan.</Text>
+                                <AnimatedButton
+                                    title="Selesai & Lanjut Pendaftaran"
+                                    onPress={handleFinish}
+                                    style={{ width: '100%' }}
+                                />
+                            </>
+                        ) : (
+                            <>
+                                <Text style={{ textAlign: 'center', marginBottom: 20, color: Theme.colors.text }}>Maaf, skor Anda belum memenuhi standar kelulusan (Minimal 80).</Text>
+                                <AnimatedButton
+                                    title="Ulangi Tes"
+                                    onPress={handleRetake}
+                                    variant="outline"
+                                    style={{ width: '100%' }}
+                                />
+                            </>
+                        )}
                     </View>
                 )}
             </View>

@@ -16,7 +16,8 @@ import * as ImagePicker from "expo-image-picker";
 
 // FIREBASE
 import { auth, db } from "./_firebaseConfig";
-import { doc, getDoc, updateDoc } from "firebase/firestore";
+import { doc, getDoc, updateDoc, deleteDoc } from "firebase/firestore";
+import { updateEmail, deleteUser, signOut } from "firebase/auth";
 import { BASE_URL } from "../api";
 
 import { Theme } from "../constants/theme";
@@ -26,7 +27,7 @@ import AnimatedButton from "../components/ui/AnimatedButton";
 export default function ProfileSettingsScreen() {
     const router = useRouter();
     const { from } = useLocalSearchParams();
-    const { showAlert } = useCustomAlert();
+    const { showAlert, showConfirm } = useCustomAlert();
 
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
@@ -60,8 +61,18 @@ export default function ProfileSettingsScreen() {
                     setName(data.name || "");
                     setPhone(data.phone || "");
                     setEmail(data.email || user.email || "");
-                    setProfilePic(data.profilePictureUrl || null);
                     setAddress(data.location || "");
+
+                    let picUrl = data.profilePictureUrl || null;
+                    if (!picUrl) {
+                        // Fallback: check users collection for profile picture if they uploaded it before becoming a tech
+                        const userRef = doc(db, "users", user.uid);
+                        const userSnap = await getDoc(userRef);
+                        if (userSnap.exists() && userSnap.data().profilePictureUrl) {
+                            picUrl = userSnap.data().profilePictureUrl;
+                        }
+                    }
+                    setProfilePic(picUrl);
                 } else {
                     // 2. Check users collection
                     const userRef = doc(db, "users", user.uid);
@@ -99,13 +110,30 @@ export default function ProfileSettingsScreen() {
         const user = auth.currentUser;
         if (!user || !role) return;
 
-        // Request permissions
-        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-        if (status !== "granted") {
-            showAlert({ title: "Izin Ditolak", message: "Izin galeri diperlukan untuk mengubah foto profil.", type: "warning" });
+        const current = await ImagePicker.getMediaLibraryPermissionsAsync();
+        
+        if (current.status === "granted") {
+            await launchGallery(user);
             return;
         }
 
+        // Soft Permission Popup
+        showConfirm({
+            title: "Akses Galeri",
+            message: "Rapid Repairs membutuhkan izin untuk mengakses galeri Anda agar dapat mengubah foto profil.",
+            onConfirm: async () => {
+                // Request native permissions only after they agree to our custom popup
+                const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+                if (status !== "granted") {
+                    showAlert({ title: "Izin Ditolak", message: "Izin galeri diperlukan untuk mengubah foto profil. Anda dapat mengaktifkannya di Pengaturan HP Anda.", type: "warning" });
+                    return;
+                }
+                await launchGallery(user);
+            }
+        });
+    };
+
+    const launchGallery = async (user: any) => {
         const result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
             allowsEditing: true,
@@ -120,12 +148,11 @@ export default function ProfileSettingsScreen() {
 
             setUploadingPic(true);
             try {
-                // Fallback upload (Backend timeout bypass): save base64 directly to Firestore
                 const base64Url = `data:image/jpeg;base64,${base64}`;
                 const { doc, updateDoc } = await import("firebase/firestore");
                 const { db } = await import("./_firebaseConfig");
                 
-                await updateDoc(doc(db, role, user.uid), {
+                await updateDoc(doc(db, role as string, user.uid), {
                     profilePictureUrl: base64Url
                 });
                 
@@ -166,6 +193,28 @@ export default function ProfileSettingsScreen() {
                 updatePayload.address = address.trim();
             }
 
+            // Handle Email Change
+            const emailClean = email.trim().toLowerCase();
+            let emailUpdated = false;
+            if (user.email && emailClean !== user.email.toLowerCase()) {
+                try {
+                    await updateEmail(user, emailClean);
+                    updatePayload.email = emailClean;
+                    emailUpdated = true;
+                } catch (emailErr: any) {
+                    if (emailErr.code === "auth/requires-recent-login") {
+                        showAlert({ 
+                            title: "Sesi Kedaluwarsa", 
+                            message: "Untuk mengubah email, Anda harus login ulang demi keamanan. Silakan logout dan masuk kembali.", 
+                            type: "warning" 
+                        });
+                        setSaving(false);
+                        return;
+                    }
+                    throw emailErr;
+                }
+            }
+
             await updateDoc(docRef, updatePayload);
 
             const handleGoBack = () => {
@@ -194,6 +243,49 @@ export default function ProfileSettingsScreen() {
         } finally {
             setSaving(false);
         }
+    };
+
+    const handleDeleteAccount = () => {
+        showAlert({
+            title: "Hapus Akun",
+            message: "Apakah Anda yakin ingin menghapus akun? Ini bersifat permanen. Anda harus mendaftar ulang jika ingin menggunakan aplikasi ini lagi.",
+            type: "warning",
+            buttons: [
+                { text: "Batal", onPress: () => {} },
+                { 
+                    text: "Ya, Hapus", 
+                    onPress: async () => {
+                        const user = auth.currentUser;
+                        if (!user || !role) return;
+                        
+                        setLoading(true);
+                        try {
+                            // 1. Delete from Firestore
+                            const docRef = doc(db, role, user.uid);
+                            await deleteDoc(docRef);
+                            
+                            // 2. Delete from Auth
+                            await deleteUser(user);
+                            
+                            showAlert({ title: "Akun Dihapus", message: "Akun Anda telah berhasil dihapus.", type: "success" });
+                            router.replace("/login");
+                        } catch (err: any) {
+                            setLoading(false);
+                            if (err.code === "auth/requires-recent-login") {
+                                showAlert({ 
+                                    title: "Gagal Menghapus", 
+                                    message: "Anda harus login ulang sebelum dapat menghapus akun ini. Silakan logout dan masuk kembali.", 
+                                    type: "warning" 
+                                });
+                            } else {
+                                console.error("Error deleting account:", err);
+                                showAlert({ title: "Terjadi Kesalahan", message: "Gagal menghapus akun. Silakan coba lagi nanti.", type: "error" });
+                            }
+                        }
+                    } 
+                }
+            ]
+        });
     };
 
     if (loading) {
@@ -301,14 +393,18 @@ export default function ProfileSettingsScreen() {
                         />
                     </View>
 
-                    {/* EMAIL (READ-ONLY) */}
+                    {/* EMAIL (EDITABLE) */}
                     <View style={styles.inputGroup}>
                         <Text style={styles.label}>Alamat Email</Text>
-                        <View style={styles.readOnlyInput}>
-                            <Text style={styles.readOnlyText}>{email}</Text>
-                            <Ionicons name="lock-closed" size={16} color={Theme.colors.textMuted} />
-                        </View>
-                        <Text style={styles.inputTip}>Alamat email tidak dapat diubah.</Text>
+                        <TextInput
+                            style={styles.input}
+                            value={email}
+                            onChangeText={setEmail}
+                            placeholder="Cth: Anda@gmail.com"
+                            placeholderTextColor={Theme.colors.textMuted}
+                            keyboardType="email-address"
+                            autoCapitalize="none"
+                        />
                     </View>
 
                     {/* SAVE BUTTON */}
@@ -318,6 +414,15 @@ export default function ProfileSettingsScreen() {
                         isLoading={saving}
                         style={{ marginTop: Theme.spacing.lg }}
                     />
+
+                    {/* DELETE ACCOUNT BUTTON */}
+                    <TouchableOpacity 
+                        style={styles.deleteBtn}
+                        onPress={handleDeleteAccount}
+                    >
+                        <Ionicons name="trash-outline" size={20} color={Theme.colors.danger || "#FF3B30"} />
+                        <Text style={styles.deleteBtnText}>Hapus Akun</Text>
+                    </TouchableOpacity>
                 </View>
             </ScrollView>
         </SafeAreaView>
@@ -433,11 +538,10 @@ const styles = StyleSheet.create({
         marginBottom: Theme.spacing.xs,
     },
     input: {
-        width: "100%",
-        backgroundColor: Theme.colors.surface,
-        borderRadius: Theme.radius.lg,
+        backgroundColor: Theme.colors.inputBg,
         paddingHorizontal: Theme.spacing.lg,
         paddingVertical: 14,
+        borderRadius: Theme.radius.lg,
         ...Theme.typography.body,
         color: Theme.colors.text,
         borderWidth: 1,
@@ -464,4 +568,20 @@ const styles = StyleSheet.create({
         ...Theme.typography.caption,
         color: Theme.colors.textMuted,
     },
+    deleteBtn: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        marginTop: 32,
+        padding: 16,
+        borderRadius: Theme.radius.lg,
+        backgroundColor: '#FFF0F0',
+        borderWidth: 1,
+        borderColor: '#FFD6D6',
+    },
+    deleteBtnText: {
+        ...Theme.typography.subtitle,
+        color: Theme.colors.danger || "#FF3B30",
+        marginLeft: 8,
+    }
 });

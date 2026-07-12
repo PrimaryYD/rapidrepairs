@@ -4,16 +4,16 @@ export const Theme = {
     primaryLight: '#A87B56',
     primaryDark: '#5E3A21',
     secondary: '#C8A97E', // Gold/Sand
-    background: '#F9F6F0', // Soft Cream
+    background: '#F7F7F9', // Crisp, modern light gray for contrast against white
     surface: '#FFFFFF', // White cards
-    surfaceLight: '#FDFBF7',
+    surfaceLight: '#F2F2F7', // Slightly darker surface for secondary elements
     text: '#1C1C1E', // Dark text
     textMuted: '#8E8E93', // Muted text
     textLight: '#FFFFFF',
     danger: '#E74C3C',
     success: '#34C759',
     warning: '#F39C12',
-    border: '#E5E5EA',
+    border: '#E5E5EA', // Standard border gray for clean separation
     inputBg: '#F2F2F7',
   },
   typography: {
@@ -44,15 +44,15 @@ export const Theme = {
     sm: {
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.05,
-      shadowRadius: 4,
+      shadowOpacity: 0.03, // Reduced shadow for a flatter look
+      shadowRadius: 3,
       elevation: 2,
     },
     md: {
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.08,
-      shadowRadius: 8,
+      shadowOpacity: 0.05, // Reduced shadow
+      shadowRadius: 6,
       elevation: 4,
     },
     lg: {

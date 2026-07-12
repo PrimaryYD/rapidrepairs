@@ -37,7 +37,7 @@ export default function DoRepairScreen() {
     const [isConfirmVisible, setIsConfirmVisible] = useState(false);
     const [isUploading, setIsUploading] = useState(false);
     const [isCompleted, setIsCompleted] = useState(false);
-    const { showAlert } = useCustomAlert();
+    const { showAlert, showConfirm } = useCustomAlert();
 
     // Animations for Success State
     const scaleAnim = useRef(new Animated.Value(0)).current;
@@ -108,12 +108,27 @@ export default function DoRepairScreen() {
             return;
         }
 
-        const { status } = await ImagePicker.requestCameraPermissionsAsync();
-        if (status !== "granted") {
-            showAlert({ title: "Izin Diperlukan", message: "Aplikasi membutuhkan izin kamera untuk mengambil foto bukti.", type: "warning" });
+        const current = await ImagePicker.getCameraPermissionsAsync();
+        if (current?.status === "granted") {
+            await launchCamera(serviceName);
             return;
         }
 
+        showConfirm({
+            title: "Akses Kamera",
+            message: "Rapid Repairs membutuhkan izin untuk mengakses kamera Anda agar dapat mengambil foto bukti perbaikan.",
+            onConfirm: async () => {
+                const { status } = await ImagePicker.requestCameraPermissionsAsync();
+                if (status !== "granted") {
+                    showAlert({ title: "Izin Diperlukan", message: "Aplikasi membutuhkan izin kamera untuk mengambil foto bukti.", type: "warning" });
+                    return;
+                }
+                await launchCamera(serviceName);
+            }
+        });
+    };
+
+    const launchCamera = async (serviceName: string) => {
         const result = await ImagePicker.launchCameraAsync({
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
             allowsEditing: true,

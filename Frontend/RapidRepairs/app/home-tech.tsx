@@ -50,7 +50,7 @@ const getDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => 
 export default function HomeTech() {
 
     const router = useRouter();
-    const { showAlert } = useCustomAlert();
+    const { showAlert, showConfirm } = useCustomAlert();
 
     const [isActive, setIsActive] = useState(false);
     const [incomingOrder, setIncomingOrder] = useState<any>(null);
@@ -141,21 +141,12 @@ export default function HomeTech() {
 
         setIsActive(val);
 
-        let coordinate = null;
-
-        if (val) {
+        const fetchLocationOrDeactivate = async () => {
             try {
-                let { status } = await Location.requestForegroundPermissionsAsync();
-                if (status !== "granted") {
-                    showAlert({ title: "Izin Diperlukan", message: "Izin lokasi diperlukan untuk menerima pesanan.", type: "warning" });
-                    setIsActive(false);
-                    return;
-                }
-
                 let loc = await Location.getCurrentPositionAsync({
                     accuracy: Location.Accuracy.Balanced,
                 });
-                coordinate = {
+                return {
                     lat: loc.coords.latitude,
                     lng: loc.coords.longitude
                 };
@@ -163,7 +154,47 @@ export default function HomeTech() {
                 console.log("Error getting location:", error);
                 showAlert({ title: "Gagal Mengambil Lokasi", message: "Pastikan GPS Anda aktif.", type: "error" });
                 setIsActive(false);
-                return;
+                return null;
+            }
+        };
+
+        let coordinate = null;
+
+        if (val) {
+            const current = await Location.getForegroundPermissionsAsync();
+            if (current.status === "granted") {
+                const loc = await fetchLocationOrDeactivate();
+                if (!loc) return;
+                coordinate = loc;
+            } else {
+                // Must wrap in a promise to wait for user interaction, or restructure.
+                // Since this is a toggle, if we show a popup, we might need to set the switch back temporarily 
+                // until they agree. But for simplicity, we'll wait for the confirmation.
+                const proceed = await new Promise((resolve) => {
+                    showConfirm({
+                        title: "Akses Lokasi",
+                        message: "Rapid Repairs membutuhkan izin lokasi agar pelanggan dapat menemukan Anda saat Anda aktif.",
+                        onConfirm: async () => {
+                            const { status } = await Location.requestForegroundPermissionsAsync();
+                            if (status === "granted") {
+                                resolve(true);
+                            } else {
+                                showAlert({ title: "Izin Diperlukan", message: "Izin lokasi diperlukan. Anda dapat mengaktifkannya di Pengaturan HP Anda.", type: "warning" });
+                                resolve(false);
+                            }
+                        },
+                        onCancel: () => resolve(false)
+                    });
+                });
+
+                if (proceed) {
+                    const loc = await fetchLocationOrDeactivate();
+                    if (!loc) return;
+                    coordinate = loc;
+                } else {
+                    setIsActive(false);
+                    return;
+                }
             }
         }
 

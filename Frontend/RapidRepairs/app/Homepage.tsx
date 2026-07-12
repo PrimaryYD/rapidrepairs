@@ -8,7 +8,11 @@ import {
   Image,
   TextInput,
   Animated,
+  Dimensions,
 } from "react-native";
+
+const { width } = Dimensions.get('window');
+const cardWidth = width - 40;
 import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -33,6 +37,9 @@ export default function Home() {
   const [showDropdown, setShowDropdown] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [profilePic, setProfilePic] = useState<string | null>(null);
+  const [name, setName] = useState("User");
+  const [lockoutUntil, setLockoutUntil] = useState<string | null>(null);
+  const [activeSlide, setActiveSlide] = useState(0);
 
   const fadeAnim = useRef(new Animated.Value(0)).current;
 
@@ -99,8 +106,18 @@ export default function Home() {
       const unsubscribeUser = onSnapshot(
         userRef,
         (docSnap) => {
-          if (docSnap.exists() && docSnap.data().profilePictureUrl) {
-            setProfilePic(docSnap.data().profilePictureUrl);
+          if (docSnap.exists()) {
+            const data = docSnap.data();
+            if (data.profilePictureUrl) setProfilePic(data.profilePictureUrl);
+            if (data.name) {
+                // Get first name
+                setName(data.name.split(" ")[0]);
+            }
+            if (data.techLockoutUntil) {
+                setLockoutUntil(data.techLockoutUntil);
+            } else {
+                setLockoutUntil(null);
+            }
           }
         },
         (error) => {
@@ -141,11 +158,17 @@ export default function Home() {
   };
 
   const categories = [
-    { name: "AC", image: require("../assets/images/ac.png") },
-    { name: "Kulkas", image: require("../assets/images/freezer.png") },
-    { name: "Elektronik", image: require("../assets/images/elektronik.png") },
-    { name: "Semua", image: require("../assets/images/all.png") },
+    { name: "AC", icon: "snow-outline" },
+    { name: "Kulkas", icon: "cube-outline" },
+    { name: "Elektronik", icon: "tv-outline" },
+    { name: "Semua", icon: "grid-outline" },
   ];
+
+  const handleScroll = (event: any) => {
+    const slideSize = event.nativeEvent.layoutMeasurement.width;
+    const index = Math.round(event.nativeEvent.contentOffset.x / slideSize);
+    setActiveSlide(index);
+  };
 
   return (
     <View style={styles.wrapper}>
@@ -208,30 +231,74 @@ export default function Home() {
         </View>
 
         <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 100 }}>
-          {/* PROMO */}
-          <View style={styles.promoCard}>
-            <View style={styles.promoContent}>
-              <View style={styles.promoBadgeContainer}>
-                <Text style={styles.promoBadge}>PROMO SPESIAL</Text>
+          {/* CAROUSEL KARTU */}
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false} 
+            snapToInterval={cardWidth + Theme.spacing.lg} 
+            snapToAlignment="start" 
+            decelerationRate="fast" 
+            contentContainerStyle={{ paddingHorizontal: Theme.spacing.lg, gap: Theme.spacing.lg, paddingVertical: Theme.spacing.lg, paddingBottom: Theme.spacing.md }}
+            onScroll={handleScroll}
+            scrollEventThrottle={16}
+          >
+            {/* WELCOME CARD */}
+            <View style={styles.welcomeCard}>
+              <View style={styles.promoContent}>
+                <View style={styles.promoBadgeContainerWelcome}>
+                  <Text style={styles.promoBadgeWelcome}>SELAMAT DATANG</Text>
+                </View>
+                <Text style={styles.promoTitleWelcome}>
+                  Halo, {name}!
+                </Text>
+                <Text style={styles.promoDescWelcome}>
+                  Solusi cepat & terpercaya untuk semua masalah rumah Anda. Pesan Teknisi sekarang.
+                </Text>
               </View>
-              <Text style={styles.promoTitle}>
-                Diskon 20% + Konsultasi Gratis!
-              </Text>
-              <Text style={styles.promoDesc}>
-                Nikmati penawaran terbatas untuk layanan repair Anda.
-              </Text>
-              <AnimatedButton
-                title="Ambil Penawaran"
-                onPress={() => router.push("/ac-services" as any)}
-                style={styles.promoButton}
-                textStyle={{ fontSize: 12, paddingHorizontal: 12, paddingVertical: 4 }}
+              <View style={styles.promoGraphic}>
+                <Ionicons name="home" size={60} color="#F5F5F5" style={{ opacity: 0.9 }} />
+              </View>
+            </View>
+
+            {/* PROMO SPESIAL */}
+            <View style={styles.promoCard}>
+              <View style={styles.promoContent}>
+                <View style={styles.promoBadgeContainer}>
+                  <Text style={styles.promoBadge}>PROMO SPESIAL</Text>
+                </View>
+                <Text style={styles.promoTitle}>
+                  Diskon 20% + Konsultasi Gratis!
+                </Text>
+                <Text style={styles.promoDesc}>
+                  Nikmati penawaran terbatas untuk layanan repair Anda.
+                </Text>
+                <AnimatedButton
+                  title="Ambil Penawaran"
+                  onPress={() => router.push("/ac-services" as any)}
+                  style={styles.promoButton}
+                  textStyle={{ fontSize: 12, paddingHorizontal: 12, paddingVertical: 4 }}
+                />
+              </View>
+              <View style={styles.promoGraphic}>
+                <Ionicons name="pricetag" size={60} color={Theme.colors.primaryDark} style={{ opacity: 0.8 }} />
+              </View>
+            </View>
+          </ScrollView>
+
+          {/* DOTS INDICATOR */}
+          <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 20 }}>
+            {[0, 1].map((_, index) => (
+              <View 
+                key={index} 
+                style={{
+                  width: activeSlide === index ? 20 : 8,
+                  height: 8,
+                  borderRadius: 4,
+                  backgroundColor: activeSlide === index ? Theme.colors.primary : Theme.colors.border,
+                  marginHorizontal: 4,
+                }} 
               />
-            </View>
-            <View style={styles.promoGraphic}>
-              <Ionicons name="snow" size={60} color={Theme.colors.primaryDark} style={{ opacity: 0.8 }} />
-              <View style={styles.promoCircle1} />
-              <View style={styles.promoCircle2} />
-            </View>
+            ))}
           </View>
 
           {/* KATEGORI */}
@@ -239,7 +306,8 @@ export default function Home() {
           <View style={styles.categoryRow}>
             {categories.filter(item => item.name.toLowerCase().includes(searchQuery.toLowerCase())).map((item, index) => {
               const isAC = item.name === "AC";
-              const isSegera = !isAC;
+              const isSemua = item.name === "Semua";
+              const isSegera = !isAC && !isSemua;
 
               return (
                 <TouchableOpacity
@@ -249,10 +317,11 @@ export default function Home() {
                   disabled={isSegera}
                   onPress={() => {
                     if (isAC) router.push("/ac-services" as any);
+                    else if (isSemua) router.push("/all-categories" as any);
                   }}
                 >
                   <View style={styles.categoryIcon}>
-                    <Image source={item.image} style={styles.categoryImage} />
+                    <Ionicons name={item.icon as any} size={28} color={Theme.colors.primary} />
                   </View>
 
                   {isSegera && (
@@ -287,7 +356,11 @@ export default function Home() {
               }
               onPress={() => {
                 if (statusTeknisi === null) {
-                  router.push("/register-technician" as any);
+                  if (lockoutUntil && new Date(lockoutUntil).getTime() > Date.now()) {
+                    router.push("/lockout-teknisi" as any);
+                  } else {
+                    router.push("/register-technician" as any);
+                  }
                 } else if (statusTeknisi === "pending") {
                   router.push("/registration-status" as any);
                 } else if (statusTeknisi === "approved") {
@@ -356,12 +429,24 @@ const styles = StyleSheet.create({
   },
   profileImage: { width: 38, height: 38, borderRadius: 19 },
 
+  welcomeCard: {
+    width: cardWidth,
+    flexDirection: "row",
+    backgroundColor: Theme.colors.primary,
+    borderRadius: Theme.radius.lg,
+    paddingVertical: Theme.spacing.xl,
+    paddingHorizontal: Theme.spacing.lg,
+    alignItems: "center",
+    ...Theme.shadows.sm,
+    overflow: 'hidden'
+  },
   promoCard: {
+    width: cardWidth,
     flexDirection: "row",
     backgroundColor: Theme.colors.secondary,
-    margin: Theme.spacing.lg,
     borderRadius: Theme.radius.lg,
-    padding: Theme.spacing.lg,
+    paddingVertical: Theme.spacing.xl,
+    paddingHorizontal: Theme.spacing.lg,
     alignItems: "center",
     ...Theme.shadows.sm,
     overflow: 'hidden'
@@ -370,6 +455,17 @@ const styles = StyleSheet.create({
   promoGraphic: { width: 100, height: 100, justifyContent: 'center', alignItems: 'center', zIndex: 1 },
   promoCircle1: { position: 'absolute', width: 140, height: 140, borderRadius: 70, backgroundColor: 'rgba(255,255,255,0.15)', top: -30, right: -40 },
   promoCircle2: { position: 'absolute', width: 80, height: 80, borderRadius: 40, backgroundColor: 'rgba(255,255,255,0.2)', bottom: 0, left: -20 },
+  promoBadgeContainerWelcome: {
+    backgroundColor: "rgba(255,255,255,0.2)",
+    alignSelf: "flex-start",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: Theme.radius.sm,
+    marginBottom: 8,
+  },
+  promoBadgeWelcome: { fontSize: 10, color: "#FFF", fontWeight: '700' },
+  promoTitleWelcome: { ...Theme.typography.h3, color: "#FFF", marginBottom: 4 },
+  promoDescWelcome: { ...Theme.typography.caption, color: "#FFF", marginBottom: 12, opacity: 0.9 },
   promoBadgeContainer: {
     backgroundColor: Theme.colors.primaryDark,
     alignSelf: "flex-start",

@@ -9,6 +9,7 @@ import * as Location from "expo-location";
 import AcMapView from "../components/AcMapView";
 import { Theme } from "../constants/theme";
 import AnimatedButton from "../components/ui/AnimatedButton";
+import { useCustomAlert } from "../components/ui/GlobalAlertProvider";
 
 export default function FoundScreen() {
     const router = useRouter();
@@ -21,18 +22,52 @@ export default function FoundScreen() {
 
     const slideAnim = useRef(new Animated.Value(200)).current;
 
+    const [locationPermissionGranted, setLocationPermissionGranted] = useState(true);
+    const { showAlert, showConfirm } = useCustomAlert();
+
+    const requestLocationPermission = async (forcePopup = false) => {
+        const current = await Location.getForegroundPermissionsAsync();
+        
+        if (current.status === "granted") {
+            setLocationPermissionGranted(true);
+            return;
+        }
+
+        if (current.status === "undetermined" || forcePopup) {
+            showConfirm({
+                title: "Akses Lokasi",
+                message: "Rapid Repairs membutuhkan izin lokasi untuk menampilkan rute teknisi ke lokasi Anda.",
+                onConfirm: async () => {
+                    const { status } = await Location.requestForegroundPermissionsAsync();
+                    if (status === "granted") {
+                        setLocationPermissionGranted(true);
+                    } else {
+                        showAlert({
+                            title: "Izin Ditolak",
+                            message: "Izin lokasi diperlukan. Anda dapat mengaktifkannya di Pengaturan HP Anda.",
+                            type: "warning"
+                        });
+                        setLocationPermissionGranted(false);
+                    }
+                },
+                onCancel: () => setLocationPermissionGranted(false)
+            });
+        } else {
+            setLocationPermissionGranted(false);
+        }
+    };
+
+    useEffect(() => {
+        requestLocationPermission();
+    }, []);
+
     // 📍 TRACK USER LOCATION
     useEffect(() => {
+        if (!locationPermissionGranted) return;
         let watchId: any;
 
         (async () => {
             try {
-                let { status } = await Location.requestForegroundPermissionsAsync();
-                if (status !== "granted") {
-                    console.log("Location permission not granted");
-                    return;
-                }
-
                 watchId = await Location.watchPositionAsync(
                     {
                         accuracy: Location.Accuracy.High,
@@ -64,7 +99,7 @@ export default function FoundScreen() {
         return () => {
             if (watchId) watchId.remove();
         };
-    }, [orderId]);
+    }, [orderId, locationPermissionGranted]);
 
     // 🔥 Auto fit map to show both user and technician
     useEffect(() => {
@@ -120,6 +155,22 @@ export default function FoundScreen() {
 
         return () => unsub();
     }, [orderId]);
+
+    if (!locationPermissionGranted && !userLocation) {
+        return (
+            <View style={styles.loading}>
+                <Ionicons name="warning" size={40} color={Theme.colors.warning} style={{ marginBottom: 16 }} />
+                <Text style={{ ...Theme.typography.body, color: Theme.colors.text, textAlign: 'center' }}>
+                    Lokasi tidak ditemukan.{"\n"}Pastikan Anda telah memberikan izin lokasi.
+                </Text>
+                <AnimatedButton
+                    title="Izinkan Lokasi"
+                    onPress={() => requestLocationPermission(true)}
+                    style={{ marginTop: 24, width: 200 }}
+                />
+            </View>
+        );
+    }
 
     if (!order) {
         return (

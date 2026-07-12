@@ -9,11 +9,13 @@ import {
     Animated,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { Theme } from "../constants/theme";
 import AnimatedButton from "../components/ui/AnimatedButton";
 import { useCustomAlert } from "../components/ui/GlobalAlertProvider";
+import SearchableDropdown from "../components/ui/SearchableDropdown";
+import locationsData from "../assets/locations.json";
 
 export default function Register() {
     const router = useRouter();
@@ -22,8 +24,14 @@ export default function Register() {
 
     const [name, setName] = useState("");
     const [email, setEmail] = useState("");
-    const [location, setLocation] = useState("");
+    const [selectedKota, setSelectedKota] = useState<{ id: string; name: string } | null>(null);
+    const [selectedKecamatan, setSelectedKecamatan] = useState<{ id: string; name: string } | null>(null);
     const [address, setAddress] = useState("");
+
+    const kecamatanList = useMemo(() => {
+        if (!selectedKota) return [];
+        return locationsData.districts.filter((d: any) => d.regency_id === selectedKota.id);
+    }, [selectedKota]);
     
     const fadeAnim = useRef(new Animated.Value(0)).current;
     const translateY = useRef(new Animated.Value(20)).current;
@@ -63,13 +71,25 @@ export default function Register() {
                 return;
             }
 
+            if (!selectedKota || !selectedKecamatan) {
+                showAlert({
+                    title: "Data Tidak Lengkap",
+                    message: "Harap pilih Kota dan Kecamatan terlebih dahulu.",
+                    type: "warning"
+                });
+                return;
+            }
+
+            const locationStr = `${selectedKecamatan.name}, ${selectedKota.name}`;
+
             router.push({
                 pathname: "/registerPassword",
                 params: {
                     name,
                     email,
-                    location,
+                    location: locationStr,
                     address,
+                    role,
                 },
             });
 
@@ -95,7 +115,7 @@ export default function Register() {
                 <Animated.View style={[styles.card, { opacity: fadeAnim, transform: [{ translateY }] }]}>
                     <TouchableOpacity
                         style={styles.backButton}
-                        onPress={() => router.back()}
+                        onPress={() => router.push("/login")}
                     >
                         <Ionicons name="chevron-back" size={20} color={Theme.colors.textMuted} />
                         <Text style={styles.backText}>Kembali</Text>
@@ -137,17 +157,29 @@ export default function Register() {
                     </View>
 
                     <View style={styles.field}>
-                        <Text style={styles.label}>Lokasi</Text>
-                        <View style={styles.inputContainer}>
-                            <Ionicons name="location-outline" size={20} color={Theme.colors.textMuted} style={styles.inputIcon} />
-                            <TextInput
-                                style={styles.input}
-                                placeholder="Masukan Kota/Kecamatan"
-                                placeholderTextColor={Theme.colors.textMuted}
-                                value={location}
-                                onChangeText={setLocation}
-                            />
-                        </View>
+                        <Text style={styles.label}>Kota</Text>
+                        <SearchableDropdown
+                            data={locationsData.regencies}
+                            value={selectedKota?.name || ""}
+                            onSelect={(item) => {
+                                setSelectedKota(item);
+                                setSelectedKecamatan(null); // reset kecamatan when kota changes
+                            }}
+                            placeholder="Pilih Kota/Kabupaten"
+                            searchPlaceholder="Cari Kota/Kabupaten..."
+                        />
+                    </View>
+
+                    <View style={styles.field}>
+                        <Text style={styles.label}>Kecamatan</Text>
+                        <SearchableDropdown
+                            data={kecamatanList}
+                            value={selectedKecamatan?.name || ""}
+                            onSelect={(item) => setSelectedKecamatan(item)}
+                            placeholder="Pilih Kecamatan"
+                            searchPlaceholder="Cari Kecamatan..."
+                            disabled={!selectedKota}
+                        />
                     </View>
 
                     <View style={styles.field}>
