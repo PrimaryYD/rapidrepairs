@@ -245,8 +245,8 @@ export default function HomeTech() {
                         }
                         
                         // If it's a real-time event (not first load), it's definitely new.
-                        // If it's first load, check if it's less than 2 minutes old.
-                        const isBrandNew = (!wasFirstLoad) || (timeMillis > 0 && Math.abs(Date.now() - timeMillis) < 120000);
+                        // If it's first load, check if it's less than 10 minutes old to account for clock drift, network latency, and app backgrounding.
+                        const isBrandNew = (!wasFirstLoad) || (timeMillis > 0 && Math.abs(Date.now() - timeMillis) < 600000);
                         
                         if (isBrandNew) {
                             setIncomingOrder({ id: change.doc.id, ...data });

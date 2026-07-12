@@ -35,7 +35,7 @@ export default function VerifyEvidence() {
             try {
                 // Get the images from tempStorage
                 const localImages = getTempData("evidenceImages") || {};
-                
+
                 // Extract base64 strings and file names
                 const payloadImages: { [key: string]: { base64: string; fileName: string }[] } = {};
                 for (const key in localImages) {
@@ -66,7 +66,7 @@ export default function VerifyEvidence() {
                     try {
                         const errData = await response.json();
                         if (errData.error) errMsg = errData.error;
-                    } catch (e) {}
+                    } catch (e) { }
                     throw new Error(errMsg);
                 }
 
@@ -94,13 +94,13 @@ export default function VerifyEvidence() {
 
             } catch (err: any) {
                 console.log("Upload error:", err);
-                
+
                 // Show failed screen with exact error
                 setAiReport(err.message || "Tidak dapat terhubung ke server backend Anda.");
                 setVisualMarkers([`Error: ${err.message}`]);
                 setIsIncorrectPart(false);
                 setStatus("failed");
-                
+
                 showAlert({ title: "Gagal", message: err.message || "Aplikasi tidak dapat menghubungi backend.", type: "error" });
             }
         };
@@ -119,7 +119,7 @@ export default function VerifyEvidence() {
                 inspectionVerified: false
             });
             clearTempData("evidenceImages");
-            
+
             router.replace({
                 pathname: "/start-inspection" as any,
                 params: { orderId }
@@ -149,7 +149,7 @@ export default function VerifyEvidence() {
 
                     <Text style={styles.title}>Memverifikasi Bukti Foto</Text>
                     <Text style={styles.description}>
-                        Sistem AI sedang mengecek kejelasan dan keabsahan foto bukti yang Anda unggah. Proses ini memakan waktu beberapa detik...
+                        Sistem AI sedang mengecek kejelasan dan validitas foto bukti yang Anda unggah. Proses ini memakan waktu beberapa detik...
                     </Text>
 
                     <AnimatedButton
@@ -173,44 +173,59 @@ export default function VerifyEvidence() {
                     </Text>
                 </View>
             ) : (
-                <ScrollView contentContainerStyle={[styles.content, { flexGrow: 1, paddingVertical: 40, justifyContent: 'center' }]}>
-                    <View style={styles.failIconContainer}>
-                        <View style={styles.failIconBg}>
-                            <Ionicons name="shield-half-sharp" size={56} color="#E74C3C" />
-                        </View>
-                    </View>
-
-                    <Text style={styles.failTitle}>Verifikasi AI Gagal</Text>
-                    
-                    <View style={styles.warningCard}>
-                        <View style={styles.warningHeader}>
-                            <Ionicons name="alert-circle" size={20} color="#E74C3C" />
-                            <Text style={styles.warningHeaderText}>
-                                {isIncorrectPart ? "Peralatan Tidak Sesuai" : "Ketidaksesuaian Bukti Fisik"}
-                            </Text>
-                        </View>
-                        <Text style={styles.warningDesc}>
-                            {aiReport || "Foto bukti pengecekan tidak menunjukkan indikasi kerusakan atau grime sesuai dengan klaim Anda."}
-                        </Text>
-                    </View>
-
-                    {visualMarkers && visualMarkers.length > 0 && (
-                        <View style={styles.markersCard}>
-                            <Text style={styles.markersTitle}>Audit Visual Terdeteksi:</Text>
-                            <View style={styles.markersList}>
-                                {visualMarkers.map((marker, index) => (
-                                    <View key={index} style={styles.markerBadge}>
-                                        <Ionicons name="eye-outline" size={14} color="#8B5E3C" style={{ marginRight: 5 }} />
-                                        <Text style={styles.markerText}>{marker}</Text>
-                                    </View>
-                                ))}
+                <View style={{ flex: 1 }}>
+                    <ScrollView
+                        style={{ flex: 1 }}
+                        contentContainerStyle={{
+                            flexGrow: 1,
+                            alignItems: "center",
+                            justifyContent: "center",
+                            paddingHorizontal: 30,
+                            paddingTop: 40,
+                            paddingBottom: 40
+                        }}
+                        showsVerticalScrollIndicator={false}
+                    >
+                        <View style={styles.failIconContainer}>
+                            <View style={styles.failIconOuterBg}>
+                                <View style={styles.failIconBg}>
+                                    <Ionicons name="shield-half-sharp" size={50} color="#E74C3C" />
+                                </View>
                             </View>
                         </View>
-                    )}
 
-                    <Text style={styles.warningActionDesc}>
-                        Deteksi menunjukkan tindakan ketidakjujuran klaim/penipuan layanan. Silakan minta pelanggan melakukan penyusunan ulang pilihan layanan perbaikan, atau perbaiki unggahan Anda.
-                    </Text>
+                        <Text style={styles.failTitle}>Verifikasi AI Gagal</Text>
+
+                        <View style={styles.warningCard}>
+                            <View style={styles.warningHeader}>
+                                <Ionicons name="alert-circle" size={20} color="#E74C3C" />
+                                <Text style={styles.warningHeaderText}>
+                                    {isIncorrectPart ? "Peralatan Tidak Sesuai" : "Ketidaksesuaian Bukti Fisik"}
+                                </Text>
+                            </View>
+                            <Text style={styles.warningDesc}>
+                                {aiReport || "Foto bukti pengecekan tidak menunjukkan indikasi kerusakan atau grime sesuai dengan klaim Anda."}
+                            </Text>
+                        </View>
+
+                        {visualMarkers && visualMarkers.length > 0 && (
+                            <View style={styles.markersCard}>
+                                <Text style={styles.markersTitle}>Audit Visual Terdeteksi:</Text>
+                                <View style={styles.markersList}>
+                                    {visualMarkers.map((marker, index) => (
+                                        <View key={index} style={styles.markerBadge}>
+                                            <Ionicons name="eye-outline" size={14} color="#8B5E3C" style={{ marginRight: 5 }} />
+                                            <Text style={styles.markerText}>{marker}</Text>
+                                        </View>
+                                    ))}
+                                </View>
+                            </View>
+                        )}
+
+                        <Text style={styles.warningActionDesc}>
+                            Deteksi menunjukkan tindakan ketidakjujuran klaim/penipuan layanan. Silakan minta pelanggan melakukan penyusunan ulang pilihan layanan perbaikan, atau perbaiki unggahan Anda.
+                        </Text>
+                    </ScrollView>
 
                     <View style={styles.actionRow}>
                         <AnimatedButton
@@ -226,7 +241,7 @@ export default function VerifyEvidence() {
                             variant="secondary"
                         />
                     </View>
-                </ScrollView>
+                </View>
             )}
         </SafeAreaView>
     );
@@ -281,14 +296,29 @@ const styles = StyleSheet.create({
     },
     failIconContainer: {
         marginBottom: 30,
+        alignItems: "center",
+        justifyContent: "center",
+    },
+    failIconOuterBg: {
+        width: 140,
+        height: 140,
+        borderRadius: 70,
+        backgroundColor: "#FFF0ED",
+        justifyContent: "center",
+        alignItems: "center",
     },
     failIconBg: {
-        width: 120,
-        height: 120,
-        borderRadius: 60,
+        width: 100,
+        height: 100,
+        borderRadius: 50,
         backgroundColor: "#FDEAE8",
         justifyContent: "center",
         alignItems: "center",
+        shadowColor: "#E74C3C",
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.15,
+        shadowRadius: 15,
+        elevation: 8,
     },
     title: {
         fontSize: 24,
@@ -331,6 +361,11 @@ const styles = StyleSheet.create({
         padding: 16,
         width: "100%",
         marginBottom: 20,
+        shadowColor: "#E74C3C",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.05,
+        shadowRadius: 8,
+        elevation: 3,
     },
     warningHeader: {
         flexDirection: "row",
@@ -356,6 +391,11 @@ const styles = StyleSheet.create({
         padding: 16,
         width: "100%",
         marginBottom: 20,
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.03,
+        shadowRadius: 6,
+        elevation: 2,
     },
     markersTitle: {
         fontSize: 13,
@@ -394,6 +434,16 @@ const styles = StyleSheet.create({
         justifyContent: "space-between",
         width: "100%",
         gap: 12,
+        paddingHorizontal: 30,
+        paddingVertical: 20,
+        backgroundColor: Theme.colors.background,
+        borderTopWidth: 1,
+        borderTopColor: '#EFEBE4',
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: -4 },
+        shadowOpacity: 0.05,
+        shadowRadius: 10,
+        elevation: 15,
     },
     resetBtn: {
         flex: 1,

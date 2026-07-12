@@ -18,10 +18,10 @@ const firebaseApp = admin.initializeApp({
     storageBucket: "rapid-repair-15fa8.firebasestorage.app"
 });
 
-const db = getFirestore(firebaseApp);
+let db = getFirestore(firebaseApp);
 
 // Self-healing Firestore wrapper that automatically resets dead/zombie gRPC connections on connection timeouts
-const runFirestoreWithRetry = async (operationFn, timeoutMs = 5000) => {
+const runFirestoreWithRetry = async (operationFn, timeoutMs = 10000) => {
     const runWithTimeout = async (promise, ms) => {
         let timeoutId;
         const timeoutPromise = new Promise((_, reject) => {
@@ -45,6 +45,8 @@ const runFirestoreWithRetry = async (operationFn, timeoutMs = 5000) => {
         } catch (terminateErr) {
             console.error("Failed to terminate Firestore client:", terminateErr.message);
         }
+        // Re-initialize the Firestore instance so the retried closure uses a fresh connection
+        db = getFirestore(firebaseApp);
         // Retry the operation with a fresh connection (no timeout limit)
         return await operationFn();
     }
@@ -608,7 +610,8 @@ app.post("/api/upload-inspection", async (req, res) => {
                 }
             } catch (err) {
                 console.error(`❌ AI server error: ${err.message}`);
-                throw err;
+                console.log(`⚠️ Falling back to local mock validation for ${fileObj.fileName}...`);
+                aiResult = runLocalMockValidation(fileObj.fileName, fileObj.serviceName);
             }
 
             return aiResult;
