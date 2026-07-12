@@ -106,18 +106,7 @@ export default function TrackingTech() {
         };
     }, [orderId, locationPermissionGranted]);
 
-    // 🔥 Auto fit map to show both tech and customer
-    useEffect(() => {
-        if (mapRef.current && techLocation && order?.location) {
-            mapRef.current.fitToCoordinates([
-                techLocation,
-                { latitude: order.location.lat, longitude: order.location.lng }
-            ], {
-                edgePadding: { top: 100, right: 100, bottom: 100, left: 100 },
-                animated: true,
-            });
-        }
-    }, [techLocation, order?.location]);
+
 
     // 🔔 LISTEN TO ORDER
     useEffect(() => {

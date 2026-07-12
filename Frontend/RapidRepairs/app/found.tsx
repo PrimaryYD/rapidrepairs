@@ -103,18 +103,6 @@ export default function FoundScreen() {
         };
     }, [orderId, locationPermissionGranted]);
 
-    // 🔥 Auto fit map to show both user and technician
-    useEffect(() => {
-        if (mapRef.current && userLocation && order?.technicianLocation) {
-            mapRef.current.fitToCoordinates([
-                userLocation,
-                { latitude: order.technicianLocation.lat, longitude: order.technicianLocation.lng }
-            ], {
-                edgePadding: { top: 100, right: 100, bottom: 100, left: 100 },
-                animated: true,
-            });
-        }
-    }, [userLocation, order?.technicianLocation]);
 
     // 🔔 LISTEN TO ORDER & FETCH TECH NAME
     useEffect(() => {

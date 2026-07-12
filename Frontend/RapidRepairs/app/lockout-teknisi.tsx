@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, SafeAreaView, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, ActivityIndicator } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { Theme } from "../constants/theme";
 import AnimatedButton from "../components/ui/AnimatedButton";
@@ -13,7 +14,7 @@ export default function LockoutTeknisi() {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        let interval: NodeJS.Timeout;
+        let interval: ReturnType<typeof setInterval>;
 
         const fetchLockout = async () => {
             const user = auth.currentUser;

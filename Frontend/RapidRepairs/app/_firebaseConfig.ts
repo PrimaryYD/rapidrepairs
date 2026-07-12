@@ -30,10 +30,10 @@ if (Platform.OS === 'web') {
 } else {
     try {
         // Double check if function exists to prevent crash on Native
-        const persistence = typeof getReactNativePersistence === 'function' 
-            ? getReactNativePersistence(AsyncStorage) 
+        const persistence = typeof getReactNativePersistence === 'function'
+            ? getReactNativePersistence(AsyncStorage)
             : undefined;
-            
+
         firebaseAuth = initializeAuth(app, {
             persistence: persistence
         });

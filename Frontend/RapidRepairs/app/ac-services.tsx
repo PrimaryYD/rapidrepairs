@@ -151,10 +151,14 @@ export default function Tracking() {
             const userSnap = await getDocs(query(collection(db, "users"), where("__name__", "==", user.uid)));
             let customerName = "Customer";
             let customerPhoto = null;
+            let customerRating = 0;
+            let customerReviewsCount = 0;
             if (!userSnap.empty) {
                 const userData = userSnap.docs[0].data();
                 customerName = userData.name || "Customer";
                 customerPhoto = userData.profilePictureUrl || null;
+                customerRating = userData.rating || 0;
+                customerReviewsCount = userData.reviewsCount || 0;
             }
 
             const q = query(
@@ -207,10 +211,9 @@ export default function Tracking() {
 
             if (!nearest) {
                 setFindingTech(false);
-                showAlert({
-                    title: "Teknisi Tidak Ditemukan",
-                    message: "Saat ini tidak ada teknisi AC yang aktif di sekitar Anda.",
-                    type: "warning"
+                router.push({
+                    pathname: "/searching" as any,
+                    params: { notFound: "true" }
                 });
                 return;
             }
@@ -219,6 +222,8 @@ export default function Tracking() {
                 userId: user.uid,
                 userName: customerName,
                 userPhoto: customerPhoto,
+                userRating: customerRating,
+                userReviewsCount: customerReviewsCount,
                 userAddress: address,
                 technicianId: nearest.id,
                 status: "waiting",

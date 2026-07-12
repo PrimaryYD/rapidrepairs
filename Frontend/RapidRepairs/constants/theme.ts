@@ -60,6 +60,7 @@ export const Theme = {
       shadowOffset: { width: 0, height: 8 },
       shadowOpacity: 0.12,
       shadowRadius: 16,
+      elevation: 8,
     },
   },
 };

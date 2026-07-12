@@ -93,12 +93,17 @@ export default function WaitingPaymentTechScreen() {
     const handleCancelOrder = async () => {
         if (orderId) {
             try {
+                // Reset order back to "arrived" so technician can re-upload evidence
+                // and customer is returned to service selection (pembayaran screen)
                 await updateDoc(doc(db, "orders", orderId as string), {
-                    status: "cancelled"
+                    status: "arrived"
                 });
-                router.replace("/home-tech" as any);
+                router.replace({
+                    pathname: "/upload-evidence" as any,
+                    params: { orderId }
+                });
             } catch (err) {
-                console.log("Error cancelling:", err);
+                console.log("Error going back:", err);
             }
         }
     };

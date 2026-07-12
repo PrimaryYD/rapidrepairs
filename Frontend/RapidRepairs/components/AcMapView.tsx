@@ -1,6 +1,10 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Platform } from "react-native";
 import MapView, { Marker, Polyline } from "react-native-maps";
+
+const DEFAULT_LATITUDE = -6.2000;
+const DEFAULT_LONGITUDE = 106.8166;
+const DEFAULT_DELTA = 0.05;
 
 export default function AcMapView({
   mapRef,
@@ -12,30 +16,54 @@ export default function AcMapView({
   destination,
   onRouteUpdate,
 }: any) {
+  // Track the current visible region in a ref (no state — avoids controlled-prop Polyline bug on iOS)
+  const regionRef = useRef({
+    latitude: location?.latitude ?? DEFAULT_LATITUDE,
+    longitude: location?.longitude ?? DEFAULT_LONGITUDE,
+    latitudeDelta: DEFAULT_DELTA,
+    longitudeDelta: DEFAULT_DELTA,
+  });
 
   const [routeCoordinates, setRouteCoordinates] = useState<any[]>([]);
 
-
-  // Titik 1 (biasanya User)
   const point1 = location;
-  // Titik 2 (bisa Teknisi atau Tujuan)
   const point2 = technicianLocation || destination;
 
+  // When GPS location updates, only re-center if the pin has gone off screen.
+  // Uses imperative animateToRegion() so the Polyline is never affected.
   useEffect(() => {
-    if (point1?.latitude && point1?.longitude && point2?.latitude && point2?.longitude) {
-      fetchRoute(point1, point2);
-    } else {
-      setRouteCoordinates([]);
-      if (onRouteUpdate) onRouteUpdate(null);
+    if (!location?.latitude || !location?.longitude) return;
+
+    const r = regionRef.current;
+    const latMin = r.latitude - r.latitudeDelta / 2;
+    const latMax = r.latitude + r.latitudeDelta / 2;
+    const lngMin = r.longitude - r.longitudeDelta / 2;
+    const lngMax = r.longitude + r.longitudeDelta / 2;
+
+    const isOnScreen =
+      location.latitude >= latMin &&
+      location.latitude <= latMax &&
+      location.longitude >= lngMin &&
+      location.longitude <= lngMax;
+
+    if (!isOnScreen && mapRef?.current) {
+      const newRegion = {
+        latitude: location.latitude,
+        longitude: location.longitude,
+        latitudeDelta: r.latitudeDelta,
+        longitudeDelta: r.longitudeDelta,
+      };
+      mapRef.current.animateToRegion(newRegion, 400);
+      regionRef.current = newRegion;
     }
-  }, [point1?.latitude, point1?.longitude, point2?.latitude, point2?.longitude]);
+  }, [location?.latitude, location?.longitude]);
+
+  // Only fit to the route once on first load — subsequent OSRM updates just refresh the line silently
+  const hasInitialFitRef = useRef(false);
 
   const fetchRoute = async (start: any, end: any) => {
     try {
-      // OSRM API URL (Free & No Key)
-      // Format: lon,lat;lon,lat
-      const url = `http://router.project-osrm.org/route/v1/driving/${start.longitude},${start.latitude};${end.longitude},${end.latitude}?overview=full&geometries=geojson`;
-      
+      const url = `https://router.project-osrm.org/route/v1/driving/${start.longitude},${start.latitude};${end.longitude},${end.latitude}?overview=full&geometries=geojson`;
       const response = await fetch(url);
       const data = await response.json();
 
@@ -46,24 +74,53 @@ export default function AcMapView({
           longitude: coord[0],
         }));
         setRouteCoordinates(coordinates);
-        
+
+        // Only fit to the route on the very first load — never again after that
+        if (!hasInitialFitRef.current && mapRef?.current) {
+          hasInitialFitRef.current = true;
+          setTimeout(() => {
+            if (mapRef?.current) {
+              mapRef.current.fitToCoordinates(
+                [
+                  { latitude: start.latitude, longitude: start.longitude },
+                  { latitude: end.latitude, longitude: end.longitude },
+                ],
+                { edgePadding: { top: 80, right: 60, bottom: 220, left: 60 }, animated: true }
+              );
+            }
+          }, 1000);
+        }
+
         if (onRouteUpdate) {
           onRouteUpdate({
-            distance: route.distance, // in meters
-            duration: route.duration, // in seconds
+            distance: route.distance,
+            duration: route.duration,
           });
         }
       }
     } catch (error) {
       console.error("OSRM Fetch Error:", error);
-      // Fallback: jika gagal, tampilkan garis lurus saja
-      setRouteCoordinates([
-        { latitude: start.latitude, longitude: start.longitude },
-        { latitude: end.latitude, longitude: end.longitude },
-      ]);
+      // Keep old routeCoordinates on error so we don't lose the last good route
+      // Only set a straight fallback if we have nothing yet
+      setRouteCoordinates((prev: any[]) => {
+        if (prev.length > 0) return prev;
+        return [
+          { latitude: start.latitude, longitude: start.longitude },
+          { latitude: end.latitude, longitude: end.longitude },
+        ];
+      });
       if (onRouteUpdate) onRouteUpdate(null);
     }
   };
+
+  useEffect(() => {
+    if (point1?.latitude && point1?.longitude && point2?.latitude && point2?.longitude) {
+      fetchRoute(point1, point2);
+    } else {
+      setRouteCoordinates([]);
+      if (onRouteUpdate) onRouteUpdate(null);
+    }
+  }, [point1?.latitude, point1?.longitude, point2?.latitude, point2?.longitude]);
 
   if (Platform.OS === "web") return null;
 
@@ -74,10 +131,13 @@ export default function AcMapView({
       userInterfaceStyle="dark"
       customMapStyle={darkMapStyle}
       initialRegion={{
-        latitude: location?.latitude || -6.2000,
-        longitude: location?.longitude || 106.8166,
-        latitudeDelta: 0.05,
-        longitudeDelta: 0.05,
+        latitude: location?.latitude ?? DEFAULT_LATITUDE,
+        longitude: location?.longitude ?? DEFAULT_LONGITUDE,
+        latitudeDelta: DEFAULT_DELTA,
+        longitudeDelta: DEFAULT_DELTA,
+      }}
+      onRegionChangeComplete={(newRegion) => {
+        regionRef.current = newRegion;
       }}
       onPress={(e: any) => {
         if (!setLocation || !getAddressFromCoords) return;
@@ -109,13 +169,12 @@ export default function AcMapView({
         />
       )}
 
-      {/* 🔥 Garis Tracking Jalan (Road-Following) */}
-      {routeCoordinates.length > 0 && (
+      {/* OSRM road-following route */}
+      {routeCoordinates.length > 1 && (
         <Polyline
           coordinates={routeCoordinates}
-          strokeColor="#8B5E3C" // Warna cokelat premium
-          strokeWidth={5}
-          lineJoin="round"
+          strokeColor="#4DABF7"
+          strokeWidth={6}
         />
       )}
     </MapView>

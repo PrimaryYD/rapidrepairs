@@ -59,16 +59,19 @@ export default function AnimatedButton({
         return {
           backgroundColor: disabled ? Theme.colors.border : Theme.colors.primary,
           borderWidth: 0,
+          ...(disabled ? { elevation: 0, shadowOpacity: 0 } : {})
         };
       case 'secondary':
         return {
           backgroundColor: disabled ? Theme.colors.border : Theme.colors.secondary,
           borderWidth: 0,
+          ...(disabled ? { elevation: 0, shadowOpacity: 0 } : {})
         };
       case 'danger':
         return {
           backgroundColor: disabled ? Theme.colors.border : Theme.colors.danger,
           borderWidth: 0,
+          ...(disabled ? { elevation: 0, shadowOpacity: 0 } : {})
         };
       case 'outline':
         return {
@@ -77,7 +80,10 @@ export default function AnimatedButton({
           borderColor: disabled ? Theme.colors.border : Theme.colors.primary,
         };
       default:
-        return { backgroundColor: Theme.colors.primary };
+        return { 
+          backgroundColor: Theme.colors.primary,
+          ...(disabled ? { elevation: 0, shadowOpacity: 0 } : {})
+        };
     }
   };
 

@@ -321,7 +321,7 @@ export default function Home() {
                   }}
                 >
                   <View style={[{ alignItems: 'center' }, isSegera && { opacity: 0.6 }]}>
-                    <View style={styles.categoryIcon}>
+                    <View style={[styles.categoryIcon, isSegera && { elevation: 0, shadowOpacity: 0 }]}>
                       <Ionicons name={item.icon as any} size={28} color={Theme.colors.primary} />
                     </View>
                     <Text style={styles.categoryText}>{item.name}</Text>

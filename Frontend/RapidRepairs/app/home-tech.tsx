@@ -11,12 +11,12 @@ import {
     Image,
     ScrollView
 } from "react-native";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import * as Location from "expo-location";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useIsFocused } from "@react-navigation/native";
+import { useIsFocused, useFocusEffect } from "@react-navigation/native";
 
 // FIREBASE
 import { auth, db } from "./_firebaseConfig";
@@ -138,6 +138,23 @@ export default function HomeTech() {
         return () => unsubAuth();
     }, []);
 
+    useFocusEffect(
+        useCallback(() => {
+            // When the screen is focused, do nothing automatically.
+            return () => {
+                // When the screen loses focus, if they are active, set them offline
+                // We shouldn't use state here since it might be stale in the cleanup function,
+                // but we can just fire a generic "set offline" update if there's a user.
+                const user = auth.currentUser;
+                if (user) {
+                    setIsActive(false); // Update local UI state just in case
+                    updateDoc(doc(db, "technicians", user.uid), { isActive: false })
+                        .catch((e) => console.log("Failed to auto-offline tech:", e));
+                }
+            };
+        }, [])
+    );
+
     const toggleStatus = async (val: boolean) => {
         const user = auth.currentUser;
         if (!user) return;
@@ -228,22 +245,23 @@ export default function HomeTech() {
             (snapshot) => {
                 setOrderCount(snapshot.size);
                 
+                const wasFirstLoad = isFirstLoad.current;
                 if (isFirstLoad.current) {
                     isFirstLoad.current = false;
-                    return; // Abaikan pesanan yang nyangkut/lama saat baru buka halaman
                 }
 
                 snapshot.docChanges().forEach((change) => {
                     if (change.type === "added") {
                         const data = change.doc.data();
                         
-                        // ONLY show popup for TRULY new orders (created in the last 2 minutes)
                         let timeMillis = 0;
                         if (data.createdAt?.toMillis) {
                             timeMillis = data.createdAt.toMillis();
                         }
                         
-                        const isBrandNew = timeMillis > 0 && (Date.now() - timeMillis) < 120000;
+                        // If it's a real-time event (not first load), it's definitely new.
+                        // If it's first load, check if it's less than 2 minutes old.
+                        const isBrandNew = (!wasFirstLoad) || (timeMillis > 0 && Math.abs(Date.now() - timeMillis) < 120000);
                         
                         if (isBrandNew) {
                             setIncomingOrder({ id: change.doc.id, ...data });

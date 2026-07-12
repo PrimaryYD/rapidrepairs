@@ -29,7 +29,7 @@ export default function SearchingScreen() {
     const [showModal, setShowModal] = useState(false);
     const [selected, setSelected] = useState("");
 
-    const { orderId } = useLocalSearchParams();
+    const { orderId, notFound } = useLocalSearchParams();
 
     /* 🔥 ANIMATIONS */
     const pulseAnim = useRef(new Animated.Value(0)).current;
@@ -80,8 +80,18 @@ export default function SearchingScreen() {
                 }
             );
             return () => unsub();
+        } else if (notFound === "true") {
+            const timer = setTimeout(() => {
+                showAlert({
+                    title: "Teknisi Tidak Ditemukan",
+                    message: "Maaf, saat ini tidak ada teknisi yang tersedia di sekitar Anda.",
+                    type: "warning"
+                });
+                router.replace("/ac-services" as any);
+            }, 2500);
+            return () => clearTimeout(timer);
         }
-    }, [orderId]);
+    }, [orderId, notFound]);
 
     const reasons = [
         "Waktu tunggu terlalu lama",
@@ -177,6 +187,7 @@ export default function SearchingScreen() {
 
                                 <AnimatedButton
                                     title="Batalkan Pesanan"
+                                    variant="danger"
                                     onPress={async () => {
                                         if (!selected) {
                                             showAlert({ title: "Pilih Alasan", message: "Silakan pilih alasan pembatalan terlebih dahulu.", type: "warning" });
@@ -195,7 +206,7 @@ export default function SearchingScreen() {
                                         }
                                         router.replace("/ac-services" as any);
                                     }}
-                                    style={styles.confirmBtn}
+                                    style={{ marginTop: Theme.spacing.sm }}
                                 />
                                 
                                 <AnimatedButton
@@ -385,9 +396,5 @@ const styles = StyleSheet.create({
         height: 10,
         borderRadius: 5,
         backgroundColor: Theme.colors.danger,
-    },
-    confirmBtn: {
-        backgroundColor: Theme.colors.danger,
-        marginTop: Theme.spacing.sm,
     },
 });
