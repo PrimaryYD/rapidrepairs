@@ -235,7 +235,11 @@ export default function TrackingTech() {
                 
                 <View style={styles.customerRow}>
                     <View style={styles.avatar}>
-                        <Ionicons name="person" size={24} color="#ccc" />
+                        {order.userPhoto ? (
+                            <Image source={{ uri: order.userPhoto }} style={{ width: '100%', height: '100%', borderRadius: 24 }} />
+                        ) : (
+                            <Ionicons name="person" size={24} color="#ccc" />
+                        )}
                     </View>
                     <View style={{ flex: 1 }}>
                         <Text style={styles.customerLabel}>Pelanggan</Text>

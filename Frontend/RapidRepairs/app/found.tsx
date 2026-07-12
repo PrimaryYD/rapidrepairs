@@ -121,8 +121,11 @@ export default function FoundScreen() {
                         if (!techSnap.empty) {
                             const techData = techSnap.docs[0].data();
                             setTechName(techData.name || "Teknisi");
-                            if (techData.selfiePhotos && techData.selfiePhotos.length > 0) {
-                                let photoUrl = techData.selfiePhotos[0];
+                            let photoUrl = techData.profilePictureUrl;
+                            if (!photoUrl && techData.selfiePhotos && techData.selfiePhotos.length > 0) {
+                                photoUrl = techData.selfiePhotos[0];
+                            }
+                            if (photoUrl) {
                                 photoUrl = photoUrl.replace(/^http:\/\/[0-9.]+:\d+/, BASE_URL);
                                 setTechPhoto(photoUrl);
                             }

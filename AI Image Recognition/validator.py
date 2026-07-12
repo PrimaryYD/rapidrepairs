@@ -80,8 +80,7 @@ class ClaimValidator:
                 )
                 print("[ClarifyAI-Tech] Google GenAI initialized successfully with API key.")
             except Exception as e:
-                print(f"[ClarifyAI-Tech] Failed to initialize Gemini API: {e}. Falling back to Mock Mode.")
-                self.use_mock = True
+                print(f"[ClarifyAI-Tech] Failed to initialize Gemini API: {e}. Mock Mode is OFF, will attempt to run anyway and fail if API key is invalid.")
         else:
             print("[ClarifyAI-Tech] Running in MOCK MODE. (To use real AI, set GEMINI_API_KEY in your .env file)")
 
@@ -181,13 +180,8 @@ You MUST return a JSON object matching the ValidationResult schema with the foll
                 result = ValidationResult(**result_json)
 
             except Exception as e:
-                print(f"[ClarifyAI-Tech] Error during VLM validation: {e}. Falling back to Mock Mode...")
-                # Automatically disable real API calls for subsequent requests if key is invalid/blocked to save time
-                err_msg = str(e).lower()
-                if "401" in err_msg or "unauthenticated" in err_msg or "unauthorized" in err_msg or "blocked" in err_msg or "permission_denied" in err_msg:
-                    print("[ClarifyAI-Tech] Detected persistent authentication/authorization error. Switching validator to Mock Mode permanently.")
-                    self.use_mock = True
-                result = self._run_mock_validation(image_path, service)
+                print(f"[ClarifyAI-Tech] Error during VLM validation: {e}")
+                raise e
 
         # Enforce 50% confidence threshold: must have >= 50% confidence to be deemed true
         if result.is_valid_claim and result.confidence < self.CONFIDENCE_THRESHOLD:

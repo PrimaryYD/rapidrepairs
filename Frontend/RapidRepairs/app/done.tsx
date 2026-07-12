@@ -88,9 +88,12 @@ export default function DoneScreen() {
                             const techData = techSnap.data();
                             setTechName(techData.name || "Budi Santoso");
                             
-                            // Check if technician has a selfie photo to use as avatar
-                            if (techData.selfiePhotos && techData.selfiePhotos.length > 0) {
-                                let photoUrl = techData.selfiePhotos[0];
+                            // Check if technician has a profile picture or selfie photo to use as avatar
+                            let photoUrl = techData.profilePictureUrl;
+                            if (!photoUrl && techData.selfiePhotos && techData.selfiePhotos.length > 0) {
+                                photoUrl = techData.selfiePhotos[0];
+                            }
+                            if (photoUrl) {
                                 photoUrl = photoUrl.replace(/^http:\/\/[0-9.]+:\d+/, BASE_URL);
                                 setTechPhoto(photoUrl);
                             }

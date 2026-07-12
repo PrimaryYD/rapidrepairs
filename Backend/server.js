@@ -610,8 +610,14 @@ app.post("/api/upload-inspection", async (req, res) => {
                 }
             } catch (err) {
                 console.error(`❌ AI server error: ${err.message}`);
-                console.log(`⚠️ Falling back to local mock validation for ${fileObj.fileName}...`);
-                aiResult = runLocalMockValidation(fileObj.fileName, fileObj.serviceName);
+                console.log(`⚠️ Mock mode is disabled. Marking ${fileObj.fileName} as unverified.`);
+                aiResult = {
+                    is_valid_claim: false,
+                    is_incorrect_part: true,
+                    confidence: 0,
+                    visual_markers: [],
+                    analysis_summary: `AI Analysis Failed: ${err.message}`
+                };
             }
 
             return { serviceName: fileObj.serviceName, aiResult };

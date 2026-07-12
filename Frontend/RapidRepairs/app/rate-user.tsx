@@ -11,7 +11,8 @@ import {
     TextInput,
     KeyboardAvoidingView,
     Platform,
-    Easing
+    Easing,
+    Image
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -28,6 +29,7 @@ export default function RateUserScreen() {
     
     const [order, setOrder] = useState<any>(null);
     const [userName, setUserName] = useState("Pelanggan");
+    const [userPhoto, setUserPhoto] = useState<string | null>(null);
     const [rating, setRating] = useState(0);
     const [selectedTags, setSelectedTags] = useState<string[]>([]);
     const [isLoading, setIsLoading] = useState(true);
@@ -70,6 +72,7 @@ export default function RateUserScreen() {
                     const orderData = orderSnap.data();
                     setOrder(orderData);
                     setUserName(orderData.userName || "Pelanggan");
+                    setUserPhoto(orderData.userPhoto || null);
                 }
             } catch (err) {
                 console.log("Error loading details in rate-user screen:", err);
@@ -178,7 +181,11 @@ export default function RateUserScreen() {
                     
                     {/* AVATAR OVERLAP */}
                     <View style={styles.avatarWrapper}>
-                        <Ionicons name="person" size={40} color="#ccc" />
+                        {userPhoto ? (
+                            <Image source={{ uri: userPhoto }} style={styles.avatarImage} />
+                        ) : (
+                            <Ionicons name="person" size={40} color="#ccc" />
+                        )}
                     </View>
 
                     {/* NAME AND ROLE */}
@@ -360,6 +367,12 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.1,
         shadowRadius: 5,
         elevation: 4,
+        overflow: "hidden",
+    },
+    avatarImage: {
+        width: "100%",
+        height: "100%",
+        borderRadius: 43,
     },
     techName: {
         fontSize: 18,
