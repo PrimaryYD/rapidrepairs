@@ -56,14 +56,21 @@ export default function AvailableOrders() {
 
         const q = query(
             collection(db, "orders"),
-            where("technicianId", "==", user.uid),
             where("status", "==", "waiting")
         );
 
         const unsub = onSnapshot(q, (snapshot) => {
             const list: any[] = [];
             snapshot.forEach((docSnap) => {
-                list.push({ id: docSnap.id, ...docSnap.data() });
+                const data = docSnap.data();
+                if (techCoords && data.location) {
+                    const dist = getDistance(techCoords.lat, techCoords.lng, data.location.lat, data.location.lng);
+                    if (dist <= 30) {
+                        list.push({ id: docSnap.id, ...data });
+                    }
+                } else if (data.technicianId === user.uid) {
+                    list.push({ id: docSnap.id, ...data });
+                }
             });
             // Sort by newest first
             list.sort((a, b) => {
@@ -81,7 +88,8 @@ export default function AvailableOrders() {
     const acceptOrder = async (orderId: string) => {
         try {
             await updateDoc(doc(db, "orders", orderId), {
-                status: "accepted"
+                status: "accepted",
+                technicianId: auth.currentUser?.uid
             });
             router.push({
                 pathname: "/tracking-tech",

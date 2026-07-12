@@ -15,8 +15,8 @@ import { useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 
 // 🔥 FIREBASE
-import { db } from "./_firebaseConfig";
-import { doc, onSnapshot, updateDoc } from "firebase/firestore";
+import { db, auth } from "./_firebaseConfig";
+import { doc, onSnapshot, updateDoc, getDoc, getDocs, collection, query, where } from "firebase/firestore";
 
 import { Theme } from "../constants/theme";
 import { useCustomAlert } from "../components/ui/GlobalAlertProvider";
@@ -34,6 +34,103 @@ export default function SearchingScreen() {
     /* 🔥 ANIMATIONS */
     const pulseAnim = useRef(new Animated.Value(0)).current;
     const fadeAnim = useRef(new Animated.Value(0)).current;
+
+    /* 🔥 JUMPING REROUTING */
+    const rejectCount = useRef(0);
+    const rejectedTechs = useRef<string[]>([]);
+    const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const jumpToNextTech = async (currentTechId: string | undefined, isRejection: boolean) => {
+        if (currentTechId && !rejectedTechs.current.includes(currentTechId)) {
+            rejectedTechs.current.push(currentTechId);
+        }
+        
+        if (isRejection) {
+            rejectCount.current += 1;
+        }
+
+        if (rejectCount.current >= 2) {
+            // Cancel and show alert
+            await updateDoc(doc(db, "orders", orderId as string), {
+                status: "cancelled",
+                cancelReason: "max_rejections"
+            });
+            showAlert({
+                title: "Tidak Ada Teknisi",
+                message: "Maaf, teknisi di sekitar Anda sedang sibuk. Silahkan coba beberapa saat lagi.",
+                type: "warning"
+            });
+            router.replace("/ac-services" as any);
+            return;
+        }
+
+        try {
+            const orderSnap = await getDoc(doc(db, "orders", orderId as string));
+            const orderData = orderSnap.data();
+            const location = orderData?.location;
+            if (!location) return;
+
+            const q = query(
+                collection(db, "technicians"),
+                where("status", "==", "approved"),
+                where("isActive", "==", true)
+            );
+            const snapshot = await getDocs(q);
+            
+            let nearest: any = null;
+            let minDist = 30; // Max 30 km
+
+            const toRad = (value: number) => (value * Math.PI) / 180;
+            const haversineDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+                const R = 6371;
+                const dLat = toRad(lat2 - lat1);
+                const dLon = toRad(lon2 - lon1);
+                const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+                return R * (2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+            };
+
+            const currentUser = auth.currentUser;
+
+            snapshot.forEach((docSnap) => {
+                if (docSnap.id === currentUser?.uid) return;
+                if (rejectedTechs.current.includes(docSnap.id)) return;
+
+                const data = docSnap.data();
+                if (!data.coordinate?.lat || !data.coordinate?.lng) return;
+
+                const dist = haversineDistance(location.lat, location.lng, data.coordinate.lat, data.coordinate.lng);
+                if (dist < minDist) {
+                    minDist = dist;
+                    nearest = { id: docSnap.id, ...data };
+                }
+            });
+
+            if (!nearest) {
+                // No tech found
+                await updateDoc(doc(db, "orders", orderId as string), {
+                    status: "cancelled",
+                    cancelReason: "no_tech_available"
+                });
+                showAlert({
+                    title: "Tidak Ada Teknisi",
+                    message: "Maaf, tidak ada teknisi lain yang tersedia dalam radius 30 KM.",
+                    type: "warning"
+                });
+                router.replace("/ac-services" as any);
+                return;
+            }
+
+            // Jump to nearest!
+            await updateDoc(doc(db, "orders", orderId as string), {
+                technicianId: nearest.id,
+                status: "waiting"
+            });
+            // Snapshot listener will catch the "waiting" status and start the timer again
+            
+        } catch (e) {
+            console.error(e);
+        }
+    };
 
     useEffect(() => {
         Animated.timing(fadeAnim, {
@@ -59,19 +156,22 @@ export default function SearchingScreen() {
                 (docSnap) => {
                     if (docSnap.exists()) {
                         const data = docSnap.data();
-                        if (data.status === "accepted") {
+                        
+                        if (timerRef.current) clearTimeout(timerRef.current);
+                        
+                        if (data.status === "waiting") {
+                            // Start 20s timer
+                            timerRef.current = setTimeout(() => {
+                                jumpToNextTech(data.technicianId, false);
+                            }, 20000);
+                        } else if (data.status === "accepted") {
                             // 👉 Navigate to tracking page for customer
                             router.replace({
                                 pathname: "/found" as any,
                                 params: { orderId }
                             });
                         } else if (data.status === "rejected") {
-                            showAlert({
-                                title: "Pesanan Ditolak",
-                                message: "Teknisi menolak pesanan Anda. Silakan cari teknisi lain.",
-                                type: "warning"
-                            });
-                            router.replace("/ac-services" as any);
+                            jumpToNextTech(data.technicianId, true);
                         }
                     }
                 },
@@ -79,7 +179,10 @@ export default function SearchingScreen() {
                     console.error("Error in searching snapshot listener:", error);
                 }
             );
-            return () => unsub();
+            return () => {
+                unsub();
+                if (timerRef.current) clearTimeout(timerRef.current);
+            };
         } else if (notFound === "true") {
             const timer = setTimeout(() => {
                 showAlert({

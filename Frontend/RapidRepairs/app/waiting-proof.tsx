@@ -37,6 +37,7 @@ export default function WaitingProofScreen() {
                                 orderId,
                                 total: (data.totalBill || 50000).toString(),
                                 services: JSON.stringify(data.selectedServices || []),
+                                verifiedServices: JSON.stringify(data.verifiedServices || {}),
                                 isCheckOnly: (!data.selectedServices || data.selectedServices.length === 0) ? "true" : "false"
                             }
                         });

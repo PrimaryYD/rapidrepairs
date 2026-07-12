@@ -12,20 +12,49 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { BASE_URL } from "../api";
 import { Ionicons } from "@expo/vector-icons";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import AnimatedButton from "../components/ui/AnimatedButton";
+import { doc, updateDoc } from "firebase/firestore";
+import { db } from "./_firebaseConfig";
 
 export default function SuccessScreen() {
 
     const router = useRouter();
-    const { orderId, services, total, isCheckOnly } = useLocalSearchParams();
+    const { orderId, services, total, verifiedServices, isCheckOnly } = useLocalSearchParams();
 
     const parsedServices = services
         ? JSON.parse(services as string)
         : [];
+        
+    const parsedVerifiedServices = verifiedServices
+        ? JSON.parse(verifiedServices as string)
+        : {};
 
     const [selectedMethod, setSelectedMethod] = useState("E-Wallet / GoPay");
     const [showModal, setShowModal] = useState(false);
+    const [checkedServices, setCheckedServices] = useState<string[]>([]);
+
+    useEffect(() => {
+        const initialChecked = parsedServices
+            .filter((s: any) => parsedVerifiedServices[s.name] === true)
+            .map((s: any) => s.name);
+        setCheckedServices(initialChecked);
+    }, [services, verifiedServices]);
+
+    const toggleService = (name: string, isVerified: boolean) => {
+        if (!isVerified) return;
+        
+        if (checkedServices.includes(name)) {
+            setCheckedServices(checkedServices.filter(item => item !== name));
+        } else {
+            setCheckedServices([...checkedServices, name]);
+        }
+    };
+
+    const checkedServicesList = parsedServices.filter((s: any) => checkedServices.includes(s.name));
+    const dynamicTotal = isCheckOnly === "true" 
+        ? 50000 
+        : 50000 + checkedServicesList.reduce((sum: number, s: any) => sum + s.price, 0);
 
     const methods = [
         "QRIS",
@@ -35,7 +64,14 @@ export default function SuccessScreen() {
 
     const handlePayment = async () => {
         try {
-            console.log("TOTAL DI FRONTEND:", total);
+            if (orderId) {
+                await updateDoc(doc(db, "orders", orderId as string), {
+                    selectedServices: checkedServicesList,
+                    totalBill: dynamicTotal
+                });
+            }
+
+            console.log("TOTAL DI FRONTEND:", dynamicTotal);
 
             const response = await fetch(`${BASE_URL}/create-transaction`, {
                 method: "POST",
@@ -44,7 +80,7 @@ export default function SuccessScreen() {
                     "bypass-tunnel-reminder": "true"
                 },
                 body: JSON.stringify({
-                    total: Number(total),
+                    total: dynamicTotal,
                 }),
             });
 
@@ -92,15 +128,43 @@ export default function SuccessScreen() {
 
                     {/* LIST LAYANAN DIPILIH */}
                     {isCheckOnly !== "true" &&
-                        parsedServices.map((item: any, i: number) => (
-                            <View style={styles.selectedCard} key={i}>
-                                <Ionicons name="checkmark-circle" size={16} color="#8B5E3C" />
-                                <Text style={styles.selectedText}>{item.name}</Text>
-                                <Text style={styles.price}>
-                                    Rp {item.price.toLocaleString("id-ID")}
-                                </Text>
-                            </View>
-                        ))
+                        parsedServices.map((item: any, i: number) => {
+                            const isVerified = parsedVerifiedServices[item.name] === true;
+                            const isChecked = checkedServices.includes(item.name);
+                            
+                            return (
+                                <TouchableOpacity 
+                                    style={[
+                                        styles.selectedCard, 
+                                        !isVerified && { backgroundColor: "#F5F5F5", borderColor: "#E0E0E0" }
+                                    ]} 
+                                    key={i}
+                                    onPress={() => toggleService(item.name, isVerified)}
+                                    activeOpacity={isVerified ? 0.7 : 1}
+                                >
+                                    <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
+                                        <View style={[styles.radio, isChecked && styles.radioActive, !isVerified && { borderColor: "#BDBDBD" }]}>
+                                            {isChecked && (
+                                                <Ionicons name="checkmark" size={14} color="#fff" />
+                                            )}
+                                        </View>
+                                        <View style={{ marginLeft: 12, flex: 1 }}>
+                                            <Text style={[styles.selectedText, !isVerified && { color: "#9E9E9E" }, { marginLeft: 0 }]}>
+                                                {item.name}
+                                            </Text>
+                                            {!isVerified && (
+                                                <Text style={{ fontSize: 11, color: "#E74C3C", marginTop: 2, fontWeight: "600" }}>
+                                                    Tidak Terverifikasi AI
+                                                </Text>
+                                            )}
+                                        </View>
+                                    </View>
+                                    <Text style={[styles.price, !isVerified && { color: "#9E9E9E" }]}>
+                                        Rp {item.price.toLocaleString("id-ID")}
+                                    </Text>
+                                </TouchableOpacity>
+                            );
+                        })
                     }
 
                     {/* RINGKASAN */}
@@ -114,7 +178,7 @@ export default function SuccessScreen() {
                         </View>
 
                         {isCheckOnly !== "true" &&
-                            parsedServices.map((item: any, i: number) => (
+                            checkedServicesList.map((item: any, i: number) => (
                                 <View style={styles.row} key={i}>
                                     <Text>{item.name}</Text>
                                     <Text>
@@ -127,7 +191,7 @@ export default function SuccessScreen() {
                         <View style={styles.rowTotal}>
                             <Text>Total Tagihan</Text>
                             <Text style={{ fontWeight: "600" }}>
-                                Rp {Number(total).toLocaleString("id-ID")}
+                                Rp {dynamicTotal.toLocaleString("id-ID")}
                             </Text>
                         </View>
 
@@ -251,6 +315,22 @@ const styles = StyleSheet.create({
         fontWeight: "bold",
         fontSize: 14,
         color: Theme.colors.primaryDark
+    },
+
+    radio: {
+        width: 20,
+        height: 20,
+        borderRadius: 10,
+        borderWidth: 1,
+        marginRight: 0,
+        justifyContent: "center",
+        alignItems: "center",
+        borderColor: Theme.colors.border
+    },
+
+    radioActive: {
+        backgroundColor: Theme.colors.primary,
+        borderColor: Theme.colors.primary
     },
 
     summaryBox: {

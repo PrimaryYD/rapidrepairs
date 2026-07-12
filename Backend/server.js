@@ -614,32 +614,45 @@ app.post("/api/upload-inspection", async (req, res) => {
                 aiResult = runLocalMockValidation(fileObj.fileName, fileObj.serviceName);
             }
 
-            return aiResult;
+            return { serviceName: fileObj.serviceName, aiResult };
         });
 
         const validationResults = await Promise.all(validationPromises);
 
         let overallVerified = true;
+        let anyVerified = false;
         let finalAnalysis = null;
+        const verifiedServicesMap = {};
 
-        for (const aiResult of validationResults) {
-            if (!aiResult.is_valid_claim || aiResult.is_incorrect_part) {
-                overallVerified = false;
-                finalAnalysis = aiResult;
+        for (const item of validationResults) {
+            const { serviceName, aiResult } = item;
+            const isVerified = Boolean(aiResult.is_valid_claim && !aiResult.is_incorrect_part);
+
+            if (isVerified) {
+                anyVerified = true;
             } else if (!finalAnalysis) {
                 finalAnalysis = aiResult;
             }
+
+            // If a service has multiple photos, we consider it verified if at least one photo passes.
+            // Or if it's already true, don't overwrite with false from another photo.
+            if (verifiedServicesMap[serviceName] !== true) {
+                verifiedServicesMap[serviceName] = isVerified;
+            }
         }
+
+        const overallStatus = anyVerified ? "inspection_verified" : "inspection_failed";
 
         // 3. Update Firestore securely on the backend
         const updatePayload = {
             inspectionPhotos: uploadedUrls,
-            inspectionVerified: overallVerified,
+            inspectionVerified: anyVerified,
+            verifiedServices: verifiedServicesMap,
             aiConfidence: finalAnalysis ? finalAnalysis.confidence : 1.0,
             aiAnalysisReport: finalAnalysis ? finalAnalysis.analysis_summary : "",
             aiVisualMarkers: finalAnalysis ? finalAnalysis.visual_markers : [],
             aiPartMismatch: finalAnalysis ? finalAnalysis.is_incorrect_part : false,
-            status: overallVerified ? "inspection_verified" : "inspection_failed"
+            status: overallStatus
         };
 
         console.log(`💾 Saving inspection status to Firestore for order ${orderId}:`, {
@@ -652,8 +665,9 @@ app.post("/api/upload-inspection", async (req, res) => {
 
         // 4. Return complete verification response
         res.json({
-            success: overallVerified,
-            verified: overallVerified,
+            success: anyVerified,
+            verified: anyVerified,
+            verifiedServices: verifiedServicesMap,
             urls: uploadedUrls,
             analysis: finalAnalysis
         });

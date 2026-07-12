@@ -1,5 +1,5 @@
 import {
-  BackHandler,
+    BackHandler,
     View,
     Text,
     StyleSheet,
@@ -89,34 +89,34 @@ export default function HomeTech() {
     ).current;
 
     /* 🔥 STATUS AKTIF */
-    
-  // 🔥 MENCEGAH TOMBOL BACK KEMBALI KE LOGIN
-  useEffect(() => {
-    const backAction = () => {
-      showAlert({
-        title: "Keluar Aplikasi",
-        message: "Apakah Anda yakin ingin keluar dari aplikasi?",
-        type: "warning",
-        buttons: [
-          { text: "Batal", style: "cancel" },
-          { text: "Keluar", onPress: () => BackHandler.exitApp() }
-        ]
-      });
-      return true; // Mencegah perilaku default (kembali ke layar sebelumnya)
-    };
 
-    const backHandler = BackHandler.addEventListener("hardwareBackPress", backAction);
-    return () => backHandler.remove();
-  }, []);
+    // 🔥 MENCEGAH TOMBOL BACK KEMBALI KE LOGIN
+    useEffect(() => {
+        const backAction = () => {
+            showAlert({
+                title: "Keluar Aplikasi",
+                message: "Apakah Anda yakin ingin keluar dari aplikasi?",
+                type: "warning",
+                buttons: [
+                    { text: "Batal", style: "cancel" },
+                    { text: "Keluar", onPress: () => BackHandler.exitApp() }
+                ]
+            });
+            return true; // Mencegah perilaku default (kembali ke layar sebelumnya)
+        };
 
-  useEffect(() => {
+        const backHandler = BackHandler.addEventListener("hardwareBackPress", backAction);
+        return () => backHandler.remove();
+    }, []);
+
+    useEffect(() => {
         const unsubAuth = onAuthStateChanged(auth, (user) => {
             if (!user) return;
 
             const ref = doc(db, "technicians", user.uid);
 
             const unsub = onSnapshot(
-                ref, 
+                ref,
                 (docSnap) => {
                     if (docSnap.exists()) {
                         setIsActive(docSnap.data().isActive ?? false);
@@ -226,10 +226,10 @@ export default function HomeTech() {
         );
 
         const unsub = onSnapshot(
-            q, 
+            q,
             (snapshot) => {
                 setOrderCount(snapshot.size);
-                
+
                 const wasFirstLoad = isFirstLoad.current;
                 if (isFirstLoad.current) {
                     isFirstLoad.current = false;
@@ -238,20 +238,29 @@ export default function HomeTech() {
                 snapshot.docChanges().forEach((change) => {
                     if (change.type === "added") {
                         const data = change.doc.data();
-                        
+
                         let timeMillis = 0;
                         if (data.createdAt?.toMillis) {
                             timeMillis = data.createdAt.toMillis();
                         }
-                        
+
                         // If it's a real-time event (not first load), it's definitely new.
                         // If it's first load, check if it's less than 10 minutes old to account for clock drift, network latency, and app backgrounding.
                         const isBrandNew = (!wasFirstLoad) || (timeMillis > 0 && Math.abs(Date.now() - timeMillis) < 600000);
-                        
+
                         if (isBrandNew) {
                             setIncomingOrder({ id: change.doc.id, ...data });
                             setShowPopup(true);
                         }
+                    }
+                    if (change.type === "removed") {
+                        setIncomingOrder((prev: any) => {
+                            if (prev?.id === change.doc.id) {
+                                setShowPopup(false);
+                                return null;
+                            }
+                            return prev;
+                        });
                     }
                 });
             },
@@ -262,6 +271,18 @@ export default function HomeTech() {
 
         return () => unsub();
     }, []);
+
+    /* ⏱️ AUTO CLOSE POPUP TIMEOUT */
+    useEffect(() => {
+        let timer: ReturnType<typeof setTimeout>;
+        if (incomingOrder && showPopup) {
+            timer = setTimeout(() => {
+                setShowPopup(false);
+                setIncomingOrder(null);
+            }, 20000); // Tutup notifikasi setelah 20 detik
+        }
+        return () => clearTimeout(timer);
+    }, [incomingOrder, showPopup]);
 
     /* 📊 LISTENER STATISTIK HARI INI */
     useEffect(() => {
@@ -283,14 +304,14 @@ export default function HomeTech() {
 
             snapshot.forEach((docSnap) => {
                 const data = docSnap.data();
-                
+
                 let time = 0;
                 if (data.completedAt?.toMillis) {
                     time = data.completedAt.toMillis();
                 } else if (data.createdAt?.toMillis) {
                     time = data.createdAt.toMillis();
                 }
-                
+
                 if (time >= startOfToday.getTime()) {
                     if (data.isWithdrawal) {
                         income -= (data.amount || 0);
@@ -304,7 +325,7 @@ export default function HomeTech() {
                         });
                     } else if (data.status === "completed" || data.escrowStatus === "released") {
                         completed += 1;
-                        
+
                         let earned = 0;
                         if (data.escrowStatus === "released") {
                             earned = data.totalBill || 0;
@@ -351,7 +372,22 @@ export default function HomeTech() {
     };
 
     /* ❌ TOLAK */
-    const rejectOrder = () => {
+    const rejectOrder = async () => {
+        setShowPopup(false);
+        if (incomingOrder?.id) {
+            try {
+                await updateDoc(doc(db, "orders", incomingOrder.id), {
+                    status: "rejected"
+                });
+            } catch (e) {
+                console.error("Error rejecting order:", e);
+            }
+        }
+        setIncomingOrder(null);
+    };
+
+    /* 🛑 ABAIKAN */
+    const ignoreOrder = () => {
         setShowPopup(false);
         setIncomingOrder(null);
     };
@@ -380,7 +416,7 @@ export default function HomeTech() {
                 <View style={styles.header}>
                     <View style={[styles.headerLeft, { zIndex: 9999 }]}>
                         <View style={{ position: "relative" }}>
-                            <TouchableOpacity 
+                            <TouchableOpacity
                                 style={styles.avatar}
                                 onPress={() => setShowDropdown(!showDropdown)}
                             >
@@ -392,7 +428,7 @@ export default function HomeTech() {
                             </TouchableOpacity>
                             {showDropdown && (
                                 <View style={styles.dropdown}>
-                                    <TouchableOpacity 
+                                    <TouchableOpacity
                                         style={styles.dropdownItem}
                                         onPress={() => {
                                             setShowDropdown(false);
@@ -406,7 +442,7 @@ export default function HomeTech() {
                                         <Text style={styles.dropdownText}>Pengaturan Akun</Text>
                                     </TouchableOpacity>
                                     <View style={styles.dropdownSeparator} />
-                                    <TouchableOpacity 
+                                    <TouchableOpacity
                                         style={styles.dropdownItem}
                                         onPress={async () => {
                                             setShowDropdown(false);
@@ -429,7 +465,7 @@ export default function HomeTech() {
 
                     <View style={styles.headerRight}>
                         {/* CUSTOMER HOME */}
-                        <TouchableOpacity 
+                        <TouchableOpacity
                             style={styles.notifBadge}
                             onPress={async () => {
                                 const user = auth.currentUser;
@@ -444,7 +480,7 @@ export default function HomeTech() {
                         </TouchableOpacity>
 
                         {/* NOTIFICATIONS & AVAILABLE ORDERS */}
-                        <TouchableOpacity 
+                        <TouchableOpacity
                             style={styles.notifBadge}
                             onPress={() => router.push("/available-orders" as any)}
                         >
@@ -501,8 +537,8 @@ export default function HomeTech() {
                     <View style={styles.summaryCard}>
                         <Text style={styles.summaryLabel}>PENDAPATAN</Text>
                         <Text style={styles.summaryValue}>Rp {todayIncome.toLocaleString("id-ID")}</Text>
-                        
-                        <TouchableOpacity 
+
+                        <TouchableOpacity
                             style={styles.tarikDanaBtn}
                             onPress={() => setShowWithdrawModal(true)}
                         >
@@ -575,7 +611,7 @@ export default function HomeTech() {
             >
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
-                        
+
                         {/* FLOATING BELL */}
                         <View style={styles.bellCircle}>
                             <Ionicons name="notifications-outline" size={32} color={Theme.colors.primary} />
@@ -637,9 +673,14 @@ export default function HomeTech() {
                             onPress={acceptOrder}
                             style={{ marginBottom: Theme.spacing.sm, width: '100%' }}
                         />
-                        <TouchableOpacity style={styles.rejectBtnRedesign} onPress={rejectOrder}>
-                            <Text style={styles.rejectBtnTextRedesign}>Tolak</Text>
-                        </TouchableOpacity>
+                        <View style={{ flexDirection: 'row', gap: Theme.spacing.sm, width: '100%' }}>
+                            <TouchableOpacity style={[styles.rejectBtnRedesign, { flex: 1, backgroundColor: Theme.colors.danger, borderColor: Theme.colors.danger }]} onPress={rejectOrder}>
+                                <Text style={[styles.rejectBtnTextRedesign, { color: 'white' }]}>Tolak</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={[styles.rejectBtnRedesign, { flex: 1, backgroundColor: Theme.colors.warning, borderColor: Theme.colors.warning }]} onPress={ignoreOrder}>
+                                <Text style={[styles.rejectBtnTextRedesign, { color: 'white' }]}>Abaikan</Text>
+                            </TouchableOpacity>
+                        </View>
 
                     </View>
                 </View>
@@ -653,7 +694,7 @@ export default function HomeTech() {
             >
                 <View style={styles.withdrawModalOverlay}>
                     <View style={styles.withdrawModalContent} {...panResponder.panHandlers}>
-                        
+
                         <View style={styles.withdrawHandle} />
 
                         <Text style={styles.withdrawTitle}>Tarik Dana</Text>
@@ -692,7 +733,7 @@ export default function HomeTech() {
                             onPress={async () => {
                                 const amountStr = withdrawAmount || "0";
                                 setShowWithdrawModal(false);
-                                
+
                                 const user = auth.currentUser;
                                 if (user) {
                                     try {
