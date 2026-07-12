@@ -23,8 +23,8 @@ export default function WaitingScreen() {
     const [order, setOrder] = useState<any>(null);
     const [techName, setTechName] = useState("Budi Santoso");
     const [techPhone, setTechPhone] = useState("081234567890");
-    const [techRating, setTechRating] = useState("4.8");
-    const [techReviews, setTechReviews] = useState("120+");
+    const [techRating, setTechRating] = useState("5.0");
+    const [techReviews, setTechReviews] = useState("0");
     const [techPhoto, setTechPhoto] = useState<string | null>(null);
 
     useEffect(() => {
@@ -45,10 +45,13 @@ export default function WaitingScreen() {
                                 const techData = techDoc.data();
                                 setTechName(techData.name || "Budi Santoso");
                                 setTechPhone(techData.phone || "081234567890");
-                                if (techData.rating) setTechRating(techData.rating.toString());
-                                if (techData.reviews) setTechReviews(techData.reviews.toString());
-                                if (techData.selfiePhotos && techData.selfiePhotos.length > 0) {
-                                    let photoUrl = techData.selfiePhotos[0];
+                                setTechRating(techData.rating !== undefined ? techData.rating.toString() : "5.0");
+                                setTechReviews(techData.reviews !== undefined ? techData.reviews.toString() : "0");
+                                let photoUrl = techData.profilePictureUrl;
+                                if (!photoUrl && techData.selfiePhotos && techData.selfiePhotos.length > 0) {
+                                    photoUrl = techData.selfiePhotos[0];
+                                }
+                                if (photoUrl) {
                                     photoUrl = photoUrl.replace(/^http:\/\/[0-9.]+:\d+/, BASE_URL);
                                     setTechPhoto(photoUrl);
                                 }
@@ -266,6 +269,7 @@ const styles = StyleSheet.create({
         justifyContent: "center",
         borderWidth: 1,
         borderColor: Theme.colors.border,
+        overflow: "hidden",
     },
     techDetails: {
         flex: 1,

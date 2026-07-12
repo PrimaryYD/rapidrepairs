@@ -105,6 +105,26 @@ export default function RateUserScreen() {
                     userReviewTags: selectedTags,
                     userRated: true
                 });
+
+                // Update customer's dynamic rating & reviews count
+                if (order?.userId) {
+                    const userRef = doc(db, "users", order.userId);
+                    const userSnap = await getDoc(userRef);
+                    if (userSnap.exists()) {
+                        const userData = userSnap.data();
+                        const currentRating = userData.rating !== undefined ? Number(userData.rating) : 5.0;
+                        const currentReviews = userData.reviewsCount !== undefined ? Number(userData.reviewsCount) : 0;
+                        
+                        const newReviews = currentReviews + 1;
+                        const newRating = ((currentRating * currentReviews) + rating) / newReviews;
+                        const finalRating = Math.round(newRating * 10) / 10;
+
+                        await updateDoc(userRef, {
+                            rating: finalRating,
+                            reviewsCount: newReviews
+                        });
+                    }
+                }
             }
             router.replace({
                 pathname: "/review-success",

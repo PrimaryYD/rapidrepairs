@@ -132,6 +132,27 @@ export default function DoneScreen() {
                     techReviewComment: showCustomReview ? customReviewText : "",
                     techRated: true
                 });
+
+                // Update technician's dynamic rating & reviews count
+                if (order?.technicianId) {
+                    const techRef = doc(db, "technicians", order.technicianId);
+                    const techSnap = await getDoc(techRef);
+                    if (techSnap.exists()) {
+                        const techData = techSnap.data();
+                        // If technician has no ratings yet, we treat it as 0 reviews and use the current rating as starting point
+                        const currentRating = techData.rating !== undefined ? Number(techData.rating) : 5.0;
+                        const currentReviews = techData.reviews !== undefined ? Number(techData.reviews) : 0;
+                        
+                        const newReviews = currentReviews + 1;
+                        const newRating = ((currentRating * currentReviews) + rating) / newReviews;
+                        const finalRating = Math.round(newRating * 10) / 10;
+
+                        await updateDoc(techRef, {
+                            rating: finalRating,
+                            reviews: newReviews
+                        });
+                    }
+                }
             }
             router.replace({
                 pathname: "/review-success",

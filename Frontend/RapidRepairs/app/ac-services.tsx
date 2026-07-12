@@ -15,7 +15,7 @@ import AcMapView from '../components/AcMapView';
 
 // 🔥 FIREBASE
 import { auth, db } from "./_firebaseConfig";
-import { collection, query, where, getDocs, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, query, where, getDocs, addDoc, serverTimestamp, getDoc, doc } from "firebase/firestore";
 
 import { Theme } from "../constants/theme";
 import { useCustomAlert } from "../components/ui/GlobalAlertProvider";
@@ -148,17 +148,17 @@ export default function Tracking() {
 
         try {
             // 🔥 Ambil Nama Customer dari Firestore
-            const userSnap = await getDocs(query(collection(db, "users"), where("__name__", "==", user.uid)));
+            const userDoc = await getDoc(doc(db, "users", user.uid));
             let customerName = "Customer";
             let customerPhoto = null;
             let customerRating = 0;
             let customerReviewsCount = 0;
-            if (!userSnap.empty) {
-                const userData = userSnap.docs[0].data();
+            if (userDoc.exists()) {
+                const userData = userDoc.data();
                 customerName = userData.name || "Customer";
                 customerPhoto = userData.profilePictureUrl || null;
-                customerRating = userData.rating || 0;
-                customerReviewsCount = userData.reviewsCount || 0;
+                customerRating = userData.rating !== undefined ? Number(userData.rating) : 0;
+                customerReviewsCount = userData.reviewsCount !== undefined ? Number(userData.reviewsCount) : 0;
             }
 
             const q = query(

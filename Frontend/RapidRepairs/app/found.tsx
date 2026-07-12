@@ -19,6 +19,8 @@ export default function FoundScreen() {
     const [userLocation, setUserLocation] = useState<any>(null);
     const [techName, setTechName] = useState("Teknisi");
     const [techPhoto, setTechPhoto] = useState<string | null>(null);
+    const [techRating, setTechRating] = useState("5.0");
+    const [techReviews, setTechReviews] = useState("0");
     const [routeInfo, setRouteInfo] = useState<{ distance: number; duration: number } | null>(null);
     const mapRef = useRef<any>(null);
 
@@ -121,6 +123,8 @@ export default function FoundScreen() {
                         if (!techSnap.empty) {
                             const techData = techSnap.docs[0].data();
                             setTechName(techData.name || "Teknisi");
+                            setTechRating(techData.rating !== undefined ? techData.rating.toString() : "5.0");
+                            setTechReviews(techData.reviews !== undefined ? techData.reviews.toString() : "0");
                             let photoUrl = techData.profilePictureUrl;
                             if (!photoUrl && techData.selfiePhotos && techData.selfiePhotos.length > 0) {
                                 photoUrl = techData.selfiePhotos[0];
@@ -231,8 +235,8 @@ export default function FoundScreen() {
                     <View style={{ flex: 1 }}>
                         <Text style={styles.techName}>{techName}</Text>
                         <View style={styles.ratingRow}>
-                            <Ionicons name="star" size={12} color={Theme.colors.warning} />
-                            <Text style={styles.ratingText}>4.8 (Expert)</Text>
+                            <Ionicons name="star" size={12} color={Theme.colors.warning} style={{ marginRight: 3 }} />
+                            <Text style={styles.ratingText}>{techRating} ({techReviews} Ulasan)</Text>
                         </View>
                     </View>
                     <TouchableOpacity style={styles.chatBtn}>
@@ -351,7 +355,8 @@ const styles = StyleSheet.create({
         alignItems: "center",
         marginRight: Theme.spacing.md,
         borderWidth: 1,
-        borderColor: Theme.colors.border
+        borderColor: Theme.colors.border,
+        overflow: "hidden"
     },
     techName: {
         ...Theme.typography.h3,

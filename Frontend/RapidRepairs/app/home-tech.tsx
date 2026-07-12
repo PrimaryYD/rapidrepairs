@@ -651,7 +651,9 @@ export default function HomeTech() {
                                 <View style={styles.ratingRow}>
                                     <Ionicons name="star" size={12} color="#F1C40F" />
                                     <Text style={styles.ratingText}>
-                                        {incomingOrder?.userRating ? `${incomingOrder.userRating.toFixed(1)} (${incomingOrder.userReviewsCount || 0} Ulasan)` : "5.0 (Pengguna Baru)"}
+                                        {incomingOrder?.userReviewsCount && incomingOrder.userReviewsCount > 0
+                                            ? `${incomingOrder.userRating.toFixed(1)} (${incomingOrder.userReviewsCount} Ulasan)`
+                                            : "5.0 (Pengguna Baru)"}
                                     </Text>
                                 </View>
                             </View>
