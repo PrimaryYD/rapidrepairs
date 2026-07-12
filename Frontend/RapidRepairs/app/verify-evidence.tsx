@@ -5,6 +5,7 @@ import {
     TouchableOpacity,
     ActivityIndicator,
     Alert,
+    ScrollView
 } from "react-native";
 import { useEffect, useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -51,7 +52,8 @@ export default function VerifyEvidence() {
                     method: "POST",
                     headers: {
                         "Content-Type": "application/json",
-                        "bypass-tunnel-reminder": "true"
+                        "bypass-tunnel-reminder": "true",
+                        "ngrok-skip-browser-warning": "true"
                     },
                     body: JSON.stringify({
                         orderId,
@@ -60,7 +62,12 @@ export default function VerifyEvidence() {
                 });
 
                 if (!response.ok) {
-                    throw new Error("Gagal mengunggah foto ke server");
+                    let errMsg = "Gagal mengunggah foto ke server";
+                    try {
+                        const errData = await response.json();
+                        if (errData.error) errMsg = errData.error;
+                    } catch (e) {}
+                    throw new Error(errMsg);
                 }
 
                 const result = await response.json();
@@ -85,16 +92,16 @@ export default function VerifyEvidence() {
                     setStatus("failed");
                 }
 
-            } catch (err) {
+            } catch (err: any) {
                 console.log("Upload error:", err);
                 
-                // Show failed screen and alert user that the backend is unreachable
-                setAiReport("Tidak dapat terhubung ke server backend Anda. Pastikan laptop/PC Anda terhubung ke Wi-Fi yang sama, Windows Firewall mengizinkan port 3000, atau gunakan localtunnel.");
-                setVisualMarkers([`Gagal koneksi ke ${BASE_URL}`]);
+                // Show failed screen with exact error
+                setAiReport(err.message || "Tidak dapat terhubung ke server backend Anda.");
+                setVisualMarkers([`Error: ${err.message}`]);
                 setIsIncorrectPart(false);
                 setStatus("failed");
                 
-                showAlert({ title: "Koneksi Gagal", message: "Aplikasi tidak dapat menghubungi backend di " + BASE_URL + ". Pastikan server backend Anda sudah jalan dan bisa diakses oleh HP Anda.", type: "error" });
+                showAlert({ title: "Gagal", message: err.message || "Aplikasi tidak dapat menghubungi backend.", type: "error" });
             }
         };
 
@@ -166,7 +173,7 @@ export default function VerifyEvidence() {
                     </Text>
                 </View>
             ) : (
-                <View style={styles.content}>
+                <ScrollView contentContainerStyle={[styles.content, { flexGrow: 1, paddingVertical: 40, justifyContent: 'center' }]}>
                     <View style={styles.failIconContainer}>
                         <View style={styles.failIconBg}>
                             <Ionicons name="shield-half-sharp" size={56} color="#E74C3C" />
@@ -219,7 +226,7 @@ export default function VerifyEvidence() {
                             variant="secondary"
                         />
                     </View>
-                </View>
+                </ScrollView>
             )}
         </SafeAreaView>
     );

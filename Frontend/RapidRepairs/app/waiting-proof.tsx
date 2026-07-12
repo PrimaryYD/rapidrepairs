@@ -120,7 +120,6 @@ const styles = StyleSheet.create({
     loaderContainer: {
         marginBottom: 30,
         backgroundColor: "#F4F1EA",
-        padding: 20,
         borderRadius: 50,
         width: 80,
         height: 80,

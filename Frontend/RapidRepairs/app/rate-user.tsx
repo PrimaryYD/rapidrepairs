@@ -7,8 +7,11 @@ import {
     ScrollView,
     ActivityIndicator,
     Animated,
-    Easing,
     Alert,
+    TextInput,
+    KeyboardAvoidingView,
+    Platform,
+    Easing
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -122,6 +125,10 @@ export default function RateUserScreen() {
     }
 
     return (
+        <KeyboardAvoidingView 
+            style={{ flex: 1 }} 
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
         <SafeAreaView style={styles.safeArea}>
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
                 
@@ -252,6 +259,7 @@ export default function RateUserScreen() {
 
             </ScrollView>
         </SafeAreaView>
+        </KeyboardAvoidingView>
     );
 }
 

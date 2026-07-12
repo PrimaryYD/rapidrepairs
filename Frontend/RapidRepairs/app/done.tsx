@@ -9,8 +9,9 @@ import {
     ActivityIndicator,
     Animated,
     Easing,
-    Alert,
     TextInput,
+    KeyboardAvoidingView,
+    Platform
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -20,6 +21,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Theme } from "../constants/theme";
 import { useCustomAlert } from "../components/ui/GlobalAlertProvider";
 import AnimatedButton from "../components/ui/AnimatedButton";
+import { BASE_URL } from "../api";
 
 export default function DoneScreen() {
     const router = useRouter();
@@ -78,7 +80,9 @@ export default function DoneScreen() {
                             
                             // Check if technician has a selfie photo to use as avatar
                             if (techData.selfiePhotos && techData.selfiePhotos.length > 0) {
-                                setTechPhoto(techData.selfiePhotos[0]);
+                                let photoUrl = techData.selfiePhotos[0];
+                                photoUrl = photoUrl.replace(/^http:\/\/[0-9.]+:\d+/, BASE_URL);
+                                setTechPhoto(photoUrl);
                             }
                         }
                     }
@@ -138,6 +142,10 @@ export default function DoneScreen() {
     }
 
     return (
+        <KeyboardAvoidingView 
+            style={{ flex: 1 }} 
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
         <SafeAreaView style={styles.safeArea}>
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
                 
@@ -195,7 +203,7 @@ export default function DoneScreen() {
                     </View>
 
                     {/* NAME AND SPECIALTY */}
-                    <Text style={styles.techName}>Bapak {techName}</Text>
+                    <Text style={styles.techName}>{techName}</Text>
                     <Text style={styles.techSpec}>Spesialis A/C</Text>
 
                     <View style={styles.cardDivider} />
@@ -272,6 +280,7 @@ export default function DoneScreen() {
 
             </ScrollView>
         </SafeAreaView>
+        </KeyboardAvoidingView>
     );
 }
 

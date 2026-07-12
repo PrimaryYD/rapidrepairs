@@ -80,7 +80,8 @@ export default function AdminApprove() {
             // 1. Fetch Technicians
             const techResponse = await fetch(`${BASE_URL}/technicians`, {
                 headers: {
-                    "bypass-tunnel-reminder": "true"
+                    "bypass-tunnel-reminder": "true",
+                    "ngrok-skip-browser-warning": "true"
                 }
             });
             if (!techResponse.ok) throw new Error("Gagal mengambil data teknisi");
@@ -95,7 +96,8 @@ export default function AdminApprove() {
             // 2. Fetch Orders
             const orderResponse = await fetch(`${BASE_URL}/api/admin/orders`, {
                 headers: {
-                    "bypass-tunnel-reminder": "true"
+                    "bypass-tunnel-reminder": "true",
+                    "ngrok-skip-browser-warning": "true"
                 }
             });
             if (!orderResponse.ok) throw new Error("Gagal mengambil data order");
@@ -955,8 +957,12 @@ export default function AdminApprove() {
                                 <View style={styles.bankDetailCard}>
                                     <Ionicons name="card" size={24} color="#B3875E" style={{marginRight: 12}} />
                                     <View style={{ flex: 1 }}>
-                                        <Text style={styles.bankNameText}>Nama Bank: {selectedOrder.bankName || "Mandiri"}</Text>
-                                        <Text style={styles.bankAccountText}>No Rekening: {selectedOrder.bankAccount || "123-456-789-0"}</Text>
+                                        <Text style={styles.bankNameText}>Nama Bank: {
+                                            technicians.find(t => t.uid === selectedOrder.technicianId)?.bankName || "Belum diset"
+                                        }</Text>
+                                        <Text style={styles.bankAccountText}>No Rekening: {
+                                            technicians.find(t => t.uid === selectedOrder.technicianId)?.bankAccount || "Belum diset"
+                                        }</Text>
                                     </View>
                                 </View>
 
@@ -975,8 +981,10 @@ export default function AdminApprove() {
 
                                 {selectedOrder.selectedServices && selectedOrder.selectedServices.length > 0 ? (
                                     selectedOrder.selectedServices.map((service: any, idx: number) => {
-                                        const beforeUrls = selectedOrder.inspectionPhotos?.[service.name] || [];
-                                        const afterUrls = selectedOrder.completionPhotos?.[service.name] || [];
+                                        const rawBeforeUrls = selectedOrder.inspectionPhotos?.[service.name] || [];
+                                        const rawAfterUrls = selectedOrder.completionPhotos?.[service.name] || [];
+                                        const beforeUrls = rawBeforeUrls.map((url: string) => url.replace(/^http:\/\/[0-9.]+:\d+/, BASE_URL));
+                                        const afterUrls = rawAfterUrls.map((url: string) => url.replace(/^http:\/\/[0-9.]+:\d+/, BASE_URL));
                                         
                                         return (
                                             <View key={idx} style={styles.serviceComparisonCard}>
@@ -1032,9 +1040,9 @@ export default function AdminApprove() {
                                                 {selectedOrder.inspectionPhotos && Object.values(selectedOrder.inspectionPhotos).flat().length > 0 ? (
                                                     <TouchableOpacity 
                                                         style={styles.comparisonImageWrapper} 
-                                                        onPress={() => setPreviewImage(Object.values(selectedOrder.inspectionPhotos).flat()[0] as string)}
+                                                        onPress={() => setPreviewImage((Object.values(selectedOrder.inspectionPhotos).flat()[0] as string).replace(/^http:\/\/[0-9.]+:\d+/, BASE_URL))}
                                                     >
-                                                        <Image source={{ uri: Object.values(selectedOrder.inspectionPhotos).flat()[0] as string }} style={styles.comparisonImage} />
+                                                        <Image source={{ uri: (Object.values(selectedOrder.inspectionPhotos).flat()[0] as string).replace(/^http:\/\/[0-9.]+:\d+/, BASE_URL) }} style={styles.comparisonImage} />
                                                     </TouchableOpacity>
                                                 ) : (
                                                     <View style={styles.noPhotoPlaceholder}>

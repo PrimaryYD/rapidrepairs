@@ -78,6 +78,12 @@ export default function UploadEvidence() {
             return;
         }
 
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== 'granted') {
+            showAlert({ title: "Izin Ditolak", message: "Akses kamera diperlukan untuk mengambil foto bukti.", type: "error" });
+            return;
+        }
+
         const result = await ImagePicker.launchCameraAsync({
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
             allowsEditing: true,

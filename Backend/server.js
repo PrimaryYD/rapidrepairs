@@ -941,7 +941,7 @@ app.listen(PORT, "0.0.0.0", async () => {
         const pythonServerDir = path.join(__dirname, '..', 'AI Image Recognition');
         const env = { ...process.env };
         delete env.PORT; // Prevent child Python process from inheriting Node's PORT and conflicting
-        const pythonProcess = spawn('python', ['server.py'], {
+        const pythonProcess = spawn('python3', ['server.py'], {
             cwd: pythonServerDir,
             stdio: 'inherit',
             shell: true,

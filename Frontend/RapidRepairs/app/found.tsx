@@ -1,10 +1,11 @@
-import { View, Text, StyleSheet, TouchableOpacity, Animated } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, Animated, Image, Modal } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useEffect, useState, useRef } from "react";
 import { doc, onSnapshot, updateDoc, collection, query, where, getDocs } from "firebase/firestore";
 import { db } from "./_firebaseConfig";
 import { Ionicons } from "@expo/vector-icons";
 import * as Location from "expo-location";
+import { BASE_URL } from "../api";
 
 import AcMapView from "../components/AcMapView";
 import { Theme } from "../constants/theme";
@@ -17,6 +18,7 @@ export default function FoundScreen() {
     const [order, setOrder] = useState<any>(null);
     const [userLocation, setUserLocation] = useState<any>(null);
     const [techName, setTechName] = useState("Teknisi");
+    const [techPhoto, setTechPhoto] = useState<string | null>(null);
     const [routeInfo, setRouteInfo] = useState<{ distance: number; duration: number } | null>(null);
     const mapRef = useRef<any>(null);
 
@@ -129,7 +131,13 @@ export default function FoundScreen() {
                     if (orderData.technicianId) {
                         const techSnap = await getDocs(query(collection(db, "technicians"), where("__name__", "==", orderData.technicianId)));
                         if (!techSnap.empty) {
-                            setTechName(techSnap.docs[0].data().name || "Teknisi");
+                            const techData = techSnap.docs[0].data();
+                            setTechName(techData.name || "Teknisi");
+                            if (techData.selfiePhotos && techData.selfiePhotos.length > 0) {
+                                let photoUrl = techData.selfiePhotos[0];
+                                photoUrl = photoUrl.replace(/^http:\/\/[0-9.]+:\d+/, BASE_URL);
+                                setTechPhoto(photoUrl);
+                            }
                         }
                     }
 
@@ -199,32 +207,36 @@ export default function FoundScreen() {
                 onRouteUpdate={(info: any) => setRouteInfo(info)}
             />
 
-            {/* TOP CARD */}
-            <View style={styles.topCard}>
-                <Text style={styles.topTitle}>
-                    {order.status === "arrived" ? "Teknisi Sudah Sampai" : "Teknisi Dalam Perjalanan"}
-                </Text>
-                
-                {order.status !== "arrived" && routeInfo ? (
-                    <View style={styles.etaRow}>
-                        <Ionicons name="time-outline" size={16} color={Theme.colors.primaryDark} />
-                        <Text style={styles.etaText}>
-                            Tiba dalam <Text style={styles.etaHighlight}>~{Math.ceil(routeInfo.duration / 60)} mnt</Text> ({routeInfo.distance < 1000 ? `${routeInfo.distance.toFixed(0)} m` : `${(routeInfo.distance / 1000).toFixed(1)} km`})
-                        </Text>
-                    </View>
-                ) : (
-                    <Text style={styles.topSubtitle}>
-                        {order.status === "arrived" ? "Silakan temui teknisi Anda" : "Mohon tunggu sebentar..."}
+            {order.status !== "arrived" && (
+                <View style={styles.topCard}>
+                    <Text style={styles.topTitle}>
+                        Teknisi Dalam Perjalanan
                     </Text>
-                )}
-            </View>
-
-            {/* BOTTOM CARD */}
-            <Animated.View style={[styles.bottomCard, { transform: [{ translateY: slideAnim }] }]}>
-                <View style={styles.techInfo}>
-                    <View style={styles.avatar}>
-                        <Ionicons name="person" size={24} color={Theme.colors.textMuted} />
-                    </View>
+                    
+                    {routeInfo ? (
+                        <View style={styles.etaRow}>
+                            <Ionicons name="time-outline" size={16} color={Theme.colors.primaryDark} />
+                            <Text style={styles.etaText}>
+                                Tiba dalam <Text style={styles.etaHighlight}>~{Math.ceil(routeInfo.duration / 60)} mnt</Text> ({routeInfo.distance < 1000 ? `${routeInfo.distance.toFixed(0)} m` : `${(routeInfo.distance / 1000).toFixed(1)} km`})
+                            </Text>
+                        </View>
+                    ) : (
+                        <Text style={styles.topSubtitle}>
+                            Mohon tunggu sebentar...
+                        </Text>
+                    )}
+                </View>
+            )}
+            {order.status !== "arrived" && (
+                <Animated.View style={[styles.bottomCard, { transform: [{ translateY: slideAnim }] }]}>
+                    <View style={styles.techInfo}>
+                        <View style={styles.avatar}>
+                            {techPhoto ? (
+                                <Image source={{ uri: techPhoto }} style={{ width: 50, height: 50, borderRadius: 25 }} />
+                            ) : (
+                                <Ionicons name="person" size={24} color={Theme.colors.textMuted} />
+                            )}
+                        </View>
                     <View style={{ flex: 1 }}>
                         <Text style={styles.techName}>{techName}</Text>
                         <View style={styles.ratingRow}>
@@ -241,18 +253,31 @@ export default function FoundScreen() {
                     <Text style={styles.serviceLabel}>LAYANAN DIPESAN</Text>
                     <Text style={styles.serviceValue}>{order.serviceType || "Kunjungan & Pengecekan AC"}</Text>
                 </View>
+                </Animated.View>
+            )}
 
-                {order.status === "arrived" && (
-                    <AnimatedButton
-                        title="Lanjut ke Pembayaran"
-                        onPress={() => router.push({
-                            pathname: "/pembayaran" as any,
-                            params: { orderId }
-                        })}
-                        style={styles.btn}
-                    />
-                )}
-            </Animated.View>
+            {/* ARRIVED MODAL */}
+            <Modal visible={order.status === "arrived"} transparent animationType="fade">
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <View style={styles.modalIconWrapper}>
+                            <Ionicons name="checkmark-circle" size={72} color={Theme.colors.primary} />
+                        </View>
+                        <Text style={styles.modalTitle}>Teknisi Sudah Sampai!</Text>
+                        <Text style={styles.modalDesc}>
+                            Teknisi {techName} telah tiba di lokasi Anda. Silakan temui teknisi untuk memulai pengecekan.
+                        </Text>
+                        <AnimatedButton
+                            title="Lanjut ke Pembayaran"
+                            onPress={() => router.push({
+                                pathname: "/pembayaran" as any,
+                                params: { orderId }
+                            })}
+                            style={{ width: '100%', marginTop: 24 }}
+                        />
+                    </View>
+                </View>
+            </Modal>
 
         </View>
     );
@@ -380,5 +405,35 @@ const styles = StyleSheet.create({
     },
     btn: {
         marginTop: Theme.spacing.md
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: "rgba(0,0,0,0.5)",
+        justifyContent: "center",
+        alignItems: "center",
+        padding: 20
+    },
+    modalContent: {
+        backgroundColor: Theme.colors.surface,
+        width: "100%",
+        borderRadius: 24,
+        padding: 24,
+        alignItems: "center",
+        ...Theme.shadows.lg
+    },
+    modalIconWrapper: {
+        marginBottom: 16
+    },
+    modalTitle: {
+        ...Theme.typography.h2,
+        color: Theme.colors.text,
+        marginBottom: 8,
+        textAlign: "center"
+    },
+    modalDesc: {
+        ...Theme.typography.body,
+        color: Theme.colors.textMuted,
+        textAlign: "center",
+        lineHeight: 22
     }
 });

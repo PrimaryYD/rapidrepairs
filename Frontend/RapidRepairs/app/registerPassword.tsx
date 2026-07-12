@@ -7,6 +7,8 @@ import {
     Image,
     ScrollView,
     Animated,
+    KeyboardAvoidingView,
+    Platform,
 } from "react-native";
 import { useRouter, useLocalSearchParams } from "expo-router";
 import { useState, useRef, useEffect } from "react";
@@ -166,7 +168,10 @@ export default function RegisterPassword() {
     };
 
     return (
-        <View style={styles.container}>
+        <KeyboardAvoidingView 
+            style={styles.container}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
                 <Image
                     source={require("../assets/Logo/2.png")}
@@ -261,7 +266,7 @@ export default function RegisterPassword() {
                     )}
                 </Animated.View>
             </ScrollView>
-        </View>
+        </KeyboardAvoidingView>
     );
 }
 

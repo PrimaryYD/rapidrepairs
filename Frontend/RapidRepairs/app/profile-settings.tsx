@@ -7,7 +7,9 @@ import {
     TouchableOpacity,
     Image,
     ActivityIndicator,
-    ScrollView
+    ScrollView,
+    KeyboardAvoidingView,
+    Platform
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -298,8 +300,12 @@ export default function ProfileSettingsScreen() {
     }
 
     return (
-        <SafeAreaView style={styles.container}>
-            {/* HEADER */}
+        <KeyboardAvoidingView 
+            style={{ flex: 1 }} 
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
+            <SafeAreaView style={styles.container}>
+                {/* HEADER */}
             <View style={styles.header}>
                 <TouchableOpacity 
                     style={styles.backBtn}
@@ -426,6 +432,7 @@ export default function ProfileSettingsScreen() {
                 </View>
             </ScrollView>
         </SafeAreaView>
+        </KeyboardAvoidingView>
     );
 }
 

@@ -7,6 +7,8 @@ import {
     Image,
     ScrollView,
     Animated,
+    KeyboardAvoidingView,
+    Platform,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useState, useRef, useEffect } from "react";
@@ -186,7 +188,10 @@ export default function Login() {
     };
 
     return (
-        <View style={styles.container}>
+        <KeyboardAvoidingView 
+            style={styles.container}
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
             <LoginLoading visible={loading} />
 
             <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -262,7 +267,7 @@ export default function Login() {
                     </View>
                 </Animated.View>
             </ScrollView>
-        </View>
+        </KeyboardAvoidingView>
     );
 }
 

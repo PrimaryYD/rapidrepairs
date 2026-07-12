@@ -129,6 +129,12 @@ export default function DoRepairScreen() {
     };
 
     const launchCamera = async (serviceName: string) => {
+        const { status } = await ImagePicker.requestCameraPermissionsAsync();
+        if (status !== 'granted') {
+            showAlert({ title: "Izin Ditolak", message: "Akses kamera diperlukan untuk mengambil foto bukti.", type: "error" });
+            return;
+        }
+
         const result = await ImagePicker.launchCameraAsync({
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
             allowsEditing: true,
@@ -196,6 +202,7 @@ export default function DoRepairScreen() {
                 headers: {
                     "Content-Type": "application/json",
                     "bypass-tunnel-reminder": "true",
+                    "ngrok-skip-browser-warning": "true",
                 },
                 body: JSON.stringify({
                     orderId,
@@ -204,7 +211,12 @@ export default function DoRepairScreen() {
             });
 
             if (!response.ok) {
-                throw new Error("Gagal mengunggah foto ke server");
+                let errMsg = "Gagal mengunggah foto ke server";
+                try {
+                    const errData = await response.json();
+                    if (errData.error) errMsg = errData.error;
+                } catch (e) {}
+                throw new Error(errMsg);
             }
 
             console.log("✅ Repair completion uploaded successfully");

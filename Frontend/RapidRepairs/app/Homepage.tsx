@@ -312,7 +312,7 @@ export default function Home() {
               return (
                 <TouchableOpacity
                   key={index}
-                  style={[styles.categoryItem, isSegera && { opacity: 0.6 }]}
+                  style={styles.categoryItem}
                   activeOpacity={0.7}
                   disabled={isSegera}
                   onPress={() => {
@@ -320,8 +320,11 @@ export default function Home() {
                     else if (isSemua) router.push("/all-categories" as any);
                   }}
                 >
-                  <View style={styles.categoryIcon}>
-                    <Ionicons name={item.icon as any} size={28} color={Theme.colors.primary} />
+                  <View style={[{ alignItems: 'center' }, isSegera && { opacity: 0.6 }]}>
+                    <View style={styles.categoryIcon}>
+                      <Ionicons name={item.icon as any} size={28} color={Theme.colors.primary} />
+                    </View>
+                    <Text style={styles.categoryText}>{item.name}</Text>
                   </View>
 
                   {isSegera && (
@@ -329,8 +332,6 @@ export default function Home() {
                       <Text style={styles.badgeText}>Segera</Text>
                     </View>
                   )}
-
-                  <Text style={styles.categoryText}>{item.name}</Text>
                 </TouchableOpacity>
               );
             })}

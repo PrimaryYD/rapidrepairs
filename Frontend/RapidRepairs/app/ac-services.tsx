@@ -150,8 +150,11 @@ export default function Tracking() {
             // 🔥 Ambil Nama Customer dari Firestore
             const userSnap = await getDocs(query(collection(db, "users"), where("__name__", "==", user.uid)));
             let customerName = "Customer";
+            let customerPhoto = null;
             if (!userSnap.empty) {
-                customerName = userSnap.docs[0].data().name;
+                const userData = userSnap.docs[0].data();
+                customerName = userData.name || "Customer";
+                customerPhoto = userData.profilePictureUrl || null;
             }
 
             const q = query(
@@ -215,6 +218,7 @@ export default function Tracking() {
             const orderRef = await addDoc(collection(db, "orders"), {
                 userId: user.uid,
                 userName: customerName,
+                userPhoto: customerPhoto,
                 userAddress: address,
                 technicianId: nearest.id,
                 status: "waiting",

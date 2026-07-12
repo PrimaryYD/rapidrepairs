@@ -13,6 +13,7 @@ import { useRouter, useLocalSearchParams } from "expo-router";
 import { BASE_URL } from "../api";
 import { Ionicons } from "@expo/vector-icons";
 import { useState } from "react";
+import AnimatedButton from "../components/ui/AnimatedButton";
 
 export default function SuccessScreen() {
 
@@ -80,7 +81,7 @@ export default function SuccessScreen() {
 
                     {/* ICON */}
                     <View style={styles.icon}>
-                        <Ionicons name="checkmark" size={28} color="#fff" />
+                        <Ionicons name="checkmark-circle" size={48} color="#4CAF50" />
                     </View>
 
                     <Text style={styles.title}>Pengecekan Selesai</Text>
@@ -145,12 +146,11 @@ export default function SuccessScreen() {
                     </TouchableOpacity>
 
                     {/* BUTTON */}
-                    <TouchableOpacity
-                        style={styles.button}
+                    <AnimatedButton
+                        title="Selesaikan & Bayar"
                         onPress={handlePayment}
-                    >
-                        <Text style={{ color: "#fff" }}>Selesaikan & Bayar</Text>
-                    </TouchableOpacity>
+                        style={{ marginTop: 24, width: '100%' }}
+                    />
 
                     {/* 🔥 MODAL PILIH PAYMENT */}
                     <Modal visible={showModal} transparent animationType="slide">
@@ -200,99 +200,117 @@ const styles = StyleSheet.create({
     },
 
     icon: {
-        backgroundColor: "#4CAF50",
-        width: 60,
-        height: 60,
-        borderRadius: 30,
+        backgroundColor: "#E8F5E9",
+        width: 80,
+        height: 80,
+        borderRadius: 40,
         justifyContent: "center",
         alignItems: "center",
         alignSelf: "center",
-        marginBottom: 10
+        marginBottom: 20
     },
 
     title: {
         textAlign: "center",
-        fontWeight: "600",
-        fontSize: 16
+        fontWeight: "800",
+        fontSize: 22,
+        color: Theme.colors.text,
+        marginBottom: 8
     },
 
     desc: {
         textAlign: "center",
-        fontSize: 12,
+        fontSize: 14,
         color: Theme.colors.textMuted,
-        marginBottom: 10
+        marginBottom: 24,
+        paddingHorizontal: 20
     },
 
     selectedCard: {
         flexDirection: "row",
         alignItems: "center",
         backgroundColor: Theme.colors.surface,
-        padding: 12,
-        borderRadius: 12,
+        padding: 16,
+        borderRadius: 16,
         marginTop: 10,
-        justifyContent: "space-between"
+        justifyContent: "space-between",
+        borderWidth: 1,
+        borderColor: Theme.colors.border,
+        ...Theme.shadows.sm
     },
 
     selectedText: {
         flex: 1,
-        marginLeft: 5
+        marginLeft: 12,
+        fontSize: 14,
+        fontWeight: "600",
+        color: Theme.colors.text
     },
 
     price: {
-        fontWeight: "500"
+        fontWeight: "bold",
+        fontSize: 14,
+        color: Theme.colors.primaryDark
     },
 
     summaryBox: {
-        backgroundColor: Theme.colors.surface,
-        padding: 15,
-        borderRadius: 15,
-        marginTop: 15
+        backgroundColor: "#F9F6F2",
+        padding: 20,
+        borderRadius: 16,
+        marginTop: 24,
+        borderWidth: 1,
+        borderColor: Theme.colors.border
     },
 
     summaryTitle: {
         fontSize: 12,
-        color: "#888",
-        marginBottom: 10
+        fontWeight: "bold",
+        color: Theme.colors.textMuted,
+        marginBottom: 16,
+        letterSpacing: 1
     },
 
     row: {
         flexDirection: "row",
         justifyContent: "space-between",
-        marginBottom: 5
+        marginBottom: 12
     },
 
     rowTotal: {
         flexDirection: "row",
         justifyContent: "space-between",
-        marginTop: 10
+        marginTop: 16,
+        paddingTop: 16,
+        borderTopWidth: 1,
+        borderTopColor: Theme.colors.border,
+        borderStyle: "dashed"
     },
 
     label: {
-        marginTop: 15,
-        marginBottom: 5,
-        color: Theme.colors.textMuted
+        marginTop: 30,
+        marginBottom: 12,
+        fontWeight: "600",
+        color: Theme.colors.text,
+        fontSize: 14
     },
 
     paymentBox: {
         backgroundColor: Theme.colors.surface,
-        padding: 14,
-        borderRadius: 12,
+        padding: 16,
+        borderRadius: 16,
         flexDirection: "row",
         alignItems: "center",
-        justifyContent: "space-between"
+        justifyContent: "space-between",
+        borderWidth: 1,
+        borderColor: Theme.colors.primaryLight,
+        ...Theme.shadows.sm
     },
 
     paymentText: {
         flex: 1,
-        marginLeft: 10
-    },
-
-    button: {
-        backgroundColor: Theme.colors.primary,
-        padding: 14,
-        borderRadius: 25,
-        alignItems: "center",
-        marginTop: 20
+        marginLeft: 12,
+        fontWeight: "600",
+        color: Theme.colors.text
     },
 
     /* MODAL */

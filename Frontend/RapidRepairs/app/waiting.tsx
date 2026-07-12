@@ -15,6 +15,7 @@ import { doc, onSnapshot, getDoc } from "firebase/firestore";
 import { db } from "./_firebaseConfig";
 import { Ionicons } from "@expo/vector-icons";
 import { Theme } from "../constants/theme";
+import { BASE_URL } from "../api";
 
 export default function WaitingScreen() {
     const router = useRouter();
@@ -22,6 +23,9 @@ export default function WaitingScreen() {
     const [order, setOrder] = useState<any>(null);
     const [techName, setTechName] = useState("Budi Santoso");
     const [techPhone, setTechPhone] = useState("081234567890");
+    const [techRating, setTechRating] = useState("4.8");
+    const [techReviews, setTechReviews] = useState("120+");
+    const [techPhoto, setTechPhoto] = useState<string | null>(null);
 
     useEffect(() => {
         if (!orderId) return;
@@ -41,6 +45,13 @@ export default function WaitingScreen() {
                                 const techData = techDoc.data();
                                 setTechName(techData.name || "Budi Santoso");
                                 setTechPhone(techData.phone || "081234567890");
+                                if (techData.rating) setTechRating(techData.rating.toString());
+                                if (techData.reviews) setTechReviews(techData.reviews.toString());
+                                if (techData.selfiePhotos && techData.selfiePhotos.length > 0) {
+                                    let photoUrl = techData.selfiePhotos[0];
+                                    photoUrl = photoUrl.replace(/^http:\/\/[0-9.]+:\d+/, BASE_URL);
+                                    setTechPhoto(photoUrl);
+                                }
                             }
                         } catch (e) {
                             console.log("Error fetching technician:", e);
@@ -113,10 +124,14 @@ export default function WaitingScreen() {
                 {/* TECHNICIAN PROFILE CARD */}
                 <View style={styles.techCard}>
                     <View style={styles.avatarContainer}>
-                        <Ionicons name="person" size={28} color="#ccc" />
+                        {techPhoto ? (
+                            <Image source={{ uri: techPhoto }} style={{ width: 48, height: 48, borderRadius: 24 }} />
+                        ) : (
+                            <Ionicons name="person" size={28} color="#ccc" />
+                        )}
                     </View>
                     <View style={styles.techDetails}>
-                        <Text style={styles.techName}>Bapak {techName}</Text>
+                        <Text style={styles.techName}>{techName}</Text>
                         <Text style={styles.techSpec}>Spesialis A/C</Text>
                         <View style={styles.badgeRow}>
                             <View style={styles.verifyBadge}>
@@ -125,7 +140,7 @@ export default function WaitingScreen() {
                             </View>
                             <View style={styles.ratingBadge}>
                                 <Ionicons name="star" size={12} color="#F1C40F" style={{ marginRight: 3 }} />
-                                <Text style={styles.ratingText}>4.8 <Text style={{ color: Theme.colors.textMuted, fontWeight: "400" }}>(120+ Ulasan)</Text></Text>
+                                <Text style={styles.ratingText}>{techRating} <Text style={{ color: Theme.colors.textMuted, fontWeight: "400" }}>({techReviews} Ulasan)</Text></Text>
                             </View>
                         </View>
                     </View>

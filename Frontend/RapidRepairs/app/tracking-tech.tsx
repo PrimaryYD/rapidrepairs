@@ -25,6 +25,7 @@ export default function TrackingTech() {
 
     const [order, setOrder] = useState<any>(null);
     const [techLocation, setTechLocation] = useState<any>(null);
+    const [routeInfo, setRouteInfo] = useState<any>(null);
     const mapRef = useRef<any>(null);
     const [locationPermissionGranted, setLocationPermissionGranted] = useState(true);
     const { showAlert, showConfirm } = useCustomAlert();
@@ -188,7 +189,10 @@ export default function TrackingTech() {
     let displayDistance = "1.5 km";
     let displayDuration = "4 menit";
 
-    if (techLocation && order?.location) {
+    if (routeInfo) {
+        displayDistance = `${(routeInfo.distance / 1000).toFixed(1)} km`;
+        displayDuration = `${Math.ceil(routeInfo.duration / 60)} menit`;
+    } else if (techLocation && order?.location) {
         const d = getDistance(
             techLocation.latitude,
             techLocation.longitude,
@@ -211,6 +215,7 @@ export default function TrackingTech() {
                     latitude: order.location.lat,
                     longitude: order.location.lng
                 }}
+                onRouteUpdate={(info: any) => setRouteInfo(info)}
             />
 
             {/* TOP ADDRESS CARD */}

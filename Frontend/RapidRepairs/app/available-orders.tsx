@@ -1,4 +1,4 @@
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView, ActivityIndicator, Image } from "react-native";
 import { useState, useEffect } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
@@ -126,8 +126,8 @@ export default function AvailableOrders() {
                     {orders.map((item) => {
                         let displayDistance = "Jarak tidak diketahui";
                         let displayDuration = "? menit";
-                        if (techCoords && item.userCoordinate) {
-                            const dist = getDistance(techCoords.lat, techCoords.lng, item.userCoordinate.lat, item.userCoordinate.lng);
+                        if (techCoords && item.location) {
+                            const dist = getDistance(techCoords.lat, techCoords.lng, item.location.lat, item.location.lng) * 1.35;
                             displayDistance = `${dist.toFixed(1)} km`;
                             displayDuration = `${Math.ceil(dist * 3)} menit`;
                         }
@@ -155,11 +155,21 @@ export default function AvailableOrders() {
                                 {/* Customer Detail */}
                                 <View style={styles.customerBox}>
                                     <View style={styles.avatar}>
-                                        <Ionicons name="person" size={20} color={Theme.colors.textMuted} />
+                                        {item.userPhoto ? (
+                                            <Image source={{ uri: item.userPhoto }} style={{ width: 40, height: 40, borderRadius: 20 }} />
+                                        ) : (
+                                            <Ionicons name="person" size={20} color={Theme.colors.textMuted} />
+                                        )}
                                     </View>
                                     <View style={{ flex: 1, marginLeft: 10 }}>
                                         <Text style={styles.customerName}>{item.userName || "Pelanggan"}</Text>
                                         <Text style={styles.distanceText}>{displayDistance} ({displayDuration}) dari Anda</Text>
+                                        <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 2 }}>
+                                            <Ionicons name="star" size={12} color="#F1C40F" />
+                                            <Text style={[styles.distanceText, { marginLeft: 4, marginTop: 0 }]}>
+                                                {item.userRating ? `${item.userRating.toFixed(1)} (${item.userReviewsCount || 0} Ulasan)` : "5.0 (Pengguna Baru)"}
+                                            </Text>
+                                        </View>
                                     </View>
                                 </View>
 

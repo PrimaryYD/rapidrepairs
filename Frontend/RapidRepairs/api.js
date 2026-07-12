@@ -6,7 +6,7 @@
 // export const BASE_URL = "http://10.0.2.2:3000";
 
 // 3. Menggunakan HP Fisik di Wi-Fi yang sama (ganti dengan IP laptop Anda):
-export const BASE_URL = "http://192.168.0.21:3000";
+export const BASE_URL = "https://punctual-sensually-onscreen.ngrok-free.dev";
 
 export const register = async (email, password) => {
     const res = await fetch(`${BASE_URL}/api/register`, {

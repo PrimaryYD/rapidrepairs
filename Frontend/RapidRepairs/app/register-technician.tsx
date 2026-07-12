@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import {
     View, Text, TextInput, TouchableOpacity, StyleSheet,
-    ScrollView, Platform, Switch, Image, Modal
+    ScrollView, Platform, Switch, Image, Modal, KeyboardAvoidingView
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -156,6 +156,12 @@ export default function RegisterTechnician() {
     };
 
     const pickImage = async (setImage: any, setRatio?: any) => {
+        const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+        if (status !== 'granted') {
+            showAlert({ title: "Izin Ditolak", message: "Akses galeri diperlukan untuk memilih foto.", type: "error" });
+            return;
+        }
+
         const result = await ImagePicker.launchImageLibraryAsync({
             mediaTypes: ImagePicker.MediaTypeOptions.Images,
             allowsEditing: true,
@@ -389,6 +395,10 @@ export default function RegisterTechnician() {
     };
 
     return (
+        <KeyboardAvoidingView 
+            style={{ flex: 1 }} 
+            behavior={Platform.OS === "ios" ? "padding" : "height"}
+        >
         <SafeAreaView style={styles.container}>
             {/* HDR */}
             <View style={styles.header}>
@@ -823,6 +833,7 @@ export default function RegisterTechnician() {
                 </View>
             </Modal>
         </SafeAreaView>
+        </KeyboardAvoidingView>
     );
 }
 

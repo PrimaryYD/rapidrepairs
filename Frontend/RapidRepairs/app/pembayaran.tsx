@@ -151,12 +151,13 @@ export default function PembayaranScreen() {
                     />
 
             {/* CANCEL */}
-            <Text
-                style={styles.cancel}
+            <TouchableOpacity 
+                style={styles.cancelBtn}
                 onPress={() => setShowCancelModal(true)}
             >
-                Batalkan, Bayar Pengecekan Saja
-            </Text>
+                <Ionicons name="close-circle-outline" size={20} color={Theme.colors.primary} />
+                <Text style={styles.cancelBtnText}>Batalkan, Bayar Pengecekan Saja</Text>
+            </TouchableOpacity>
 
             {/* CANCEL MODAL */}
             <Modal visible={showCancelModal} transparent animationType="fade">
@@ -356,7 +357,10 @@ const styles = StyleSheet.create({
         height: 20,
         borderRadius: 10,
         borderWidth: 1,
-        marginRight: 10
+        marginRight: 10,
+        justifyContent: "center",
+        alignItems: "center",
+        borderColor: Theme.colors.border
     },
 
     radioActive: {
@@ -375,11 +379,22 @@ const styles = StyleSheet.create({
         color: "#fff"
     },
 
-    cancel: {
-        textAlign: "center",
-        marginTop: 10,
-        textDecorationLine: "underline",
-        color: Theme.colors.primary
+    cancelBtn: {
+        flexDirection: "row",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: 14,
+        marginTop: 16,
+        borderRadius: 25,
+        borderWidth: 1,
+        borderColor: Theme.colors.primary,
+        backgroundColor: "transparent"
+    },
+    cancelBtnText: {
+        marginLeft: 8,
+        color: Theme.colors.primary,
+        fontWeight: "600",
+        fontSize: 14
     },
 
     overlay: {

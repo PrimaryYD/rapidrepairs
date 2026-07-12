@@ -16,6 +16,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import * as Location from "expo-location";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useIsFocused } from "@react-navigation/native";
 
 // FIREBASE
 import { auth, db } from "./_firebaseConfig";
@@ -53,6 +54,8 @@ export default function HomeTech() {
     const { showAlert, showConfirm } = useCustomAlert();
 
     const [isActive, setIsActive] = useState(false);
+    const [stats, setStats] = useState({ income: 0, completed: 0 });
+    const isFocused = useIsFocused();
     const [incomingOrder, setIncomingOrder] = useState<any>(null);
     const [showPopup, setShowPopup] = useState(false);
     const [orderCount, setOrderCount] = useState(0);
@@ -360,7 +363,7 @@ export default function HomeTech() {
             techCoords.lng,
             incomingOrder.location.lat,
             incomingOrder.location.lng
-        );
+        ) * 1.35;
         displayDistance = `${dist.toFixed(1)} km`;
         // Estimate duration based on speed: e.g. ~2.5 mins per km
         const estMinutes = Math.max(1, Math.round(dist * 2.5));
@@ -556,7 +559,7 @@ export default function HomeTech() {
 
             {/* 🔔 MODAL NOTIFIKASI ORDER */}
             <Modal
-                visible={showPopup}
+                visible={showPopup && isFocused}
                 transparent
                 animationType="fade"
             >
@@ -587,7 +590,11 @@ export default function HomeTech() {
                         {/* CUSTOMER CARD */}
                         <View style={styles.customerCard}>
                             <View style={styles.customerAvatar}>
-                                <Ionicons name="person" size={26} color={Theme.colors.textMuted} />
+                                {incomingOrder?.userPhoto ? (
+                                    <Image source={{ uri: incomingOrder.userPhoto }} style={{ width: 52, height: 52, borderRadius: 26 }} />
+                                ) : (
+                                    <Ionicons name="person" size={26} color={Theme.colors.textMuted} />
+                                )}
                             </View>
                             <View style={{ flex: 1 }}>
                                 <Text style={styles.customerName}>{incomingOrder?.userName || "Pelanggan"}</Text>
@@ -597,11 +604,9 @@ export default function HomeTech() {
                                 </View>
                                 <View style={styles.ratingRow}>
                                     <Ionicons name="star" size={12} color="#F1C40F" />
-                                    <Ionicons name="star" size={12} color="#F1C40F" />
-                                    <Ionicons name="star" size={12} color="#F1C40F" />
-                                    <Ionicons name="star" size={12} color="#F1C40F" />
-                                    <Ionicons name="star-half" size={12} color="#F1C40F" />
-                                    <Text style={styles.ratingText}>4.7 (115 Ulasan)</Text>
+                                    <Text style={styles.ratingText}>
+                                        {incomingOrder?.userRating ? `${incomingOrder.userRating.toFixed(1)} (${incomingOrder.userReviewsCount || 0} Ulasan)` : "5.0 (Pengguna Baru)"}
+                                    </Text>
                                 </View>
                             </View>
                         </View>
