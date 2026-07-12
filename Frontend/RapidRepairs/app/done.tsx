@@ -11,7 +11,8 @@ import {
     Easing,
     TextInput,
     KeyboardAvoidingView,
-    Platform
+    Platform,
+    BackHandler
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -26,6 +27,15 @@ import { BASE_URL } from "../api";
 export default function DoneScreen() {
     const router = useRouter();
     const { orderId } = useLocalSearchParams();
+    
+    // Prevent Android hardware back button
+    useEffect(() => {
+        const onBackPress = () => {
+            return true; // prevent default behavior
+        };
+        const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+        return () => subscription.remove();
+    }, []);
     
     const [order, setOrder] = useState<any>(null);
     const [techName, setTechName] = useState("Budi Santoso");

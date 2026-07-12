@@ -5,8 +5,8 @@ import {
     TouchableOpacity,
     ScrollView,
     Image,
-    Alert,
     ActivityIndicator,
+    BackHandler,
 } from "react-native";
 import { useEffect, useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -30,6 +30,15 @@ type ImageType = {
 export default function UploadEvidence() {
     const router = useRouter();
     const { orderId } = useLocalSearchParams();
+
+    // Prevent Android hardware back button
+    useEffect(() => {
+        const onBackPress = () => {
+            return true; // prevent default behavior
+        };
+        const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+        return () => subscription.remove();
+    }, []);
     const [order, setOrder] = useState<any>(null);
     const [evidenceImages, setEvidenceImages] = useState<{ [key: string]: ImageType[] }>({});
     const { showAlert } = useCustomAlert();
@@ -38,17 +47,17 @@ export default function UploadEvidence() {
         if (!orderId) return;
 
         const unsub = onSnapshot(
-            doc(db, "orders", orderId as string), 
+            doc(db, "orders", orderId as string),
             (docSnap) => {
                 if (docSnap.exists()) {
                     const data = docSnap.data();
                     setOrder(data);
-                    
+
                     // Initialize evidence images state if not already done
                     if (data.selectedServices) {
                         const initialImages: { [key: string]: ImageType[] } = {};
-                        const list = data.selectedServices.length > 0 
-                            ? data.selectedServices 
+                        const list = data.selectedServices.length > 0
+                            ? data.selectedServices
                             : [{ name: "Pengecekan Umum" }];
                         list.forEach((service: any) => {
                             initialImages[service.name] = [];
@@ -95,18 +104,18 @@ export default function UploadEvidence() {
         if (!result.canceled && result.assets && result.assets[0]) {
             const newUri = result.assets[0].uri;
             const newBase64 = result.assets[0].base64 || "";
-            
+
             const newImageObj: ImageType = {
                 uri: newUri,
                 base64: newBase64,
                 fileName: result.assets[0].fileName || newUri.split('/').pop() || ""
             };
-            
+
             setEvidenceImages(prev => ({
                 ...prev,
                 [serviceName]: [...(prev[serviceName] || []), newImageObj]
             }));
-            
+
             // Note: In a real app, we might store base64 in a ref or temporary state for AI processing
         }
     };
@@ -139,7 +148,7 @@ export default function UploadEvidence() {
         // Navigate to verification screen
         router.push({
             pathname: "/verify-evidence" as any,
-            params: { 
+            params: {
                 orderId
             }
         });
@@ -181,18 +190,18 @@ export default function UploadEvidence() {
                             {evidenceImages[service.name]?.map((imgObj, imgIdx) => (
                                 <View key={imgIdx} style={styles.imageWrapper}>
                                     <Image source={{ uri: imgObj.uri }} style={styles.evidenceImage} />
-                                    <TouchableOpacity 
-                                        style={styles.removeBtn} 
+                                    <TouchableOpacity
+                                        style={styles.removeBtn}
                                         onPress={() => removeImage(service.name, imgIdx)}
                                     >
                                         <Ionicons name="close" size={14} color="#fff" />
                                     </TouchableOpacity>
                                 </View>
                             ))}
-                            
+
                             {(!evidenceImages[service.name] || evidenceImages[service.name].length < 5) && (
-                                <TouchableOpacity 
-                                    style={styles.uploadBox} 
+                                <TouchableOpacity
+                                    style={styles.uploadBox}
                                     onPress={() => pickImage(service.name)}
                                 >
                                     <Ionicons name="camera-outline" size={32} color="#8B5E3C" />

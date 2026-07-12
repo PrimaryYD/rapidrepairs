@@ -8,7 +8,8 @@ import {
     TouchableOpacity, 
     ActivityIndicator,
     Animated,
-    Easing
+    Easing,
+    BackHandler
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter, useLocalSearchParams } from "expo-router";
@@ -19,6 +20,16 @@ import { Ionicons } from "@expo/vector-icons";
 export default function WaitingPaymentTechScreen() {
     const router = useRouter();
     const { orderId } = useLocalSearchParams();
+    
+    // Prevent Android hardware back button
+    useEffect(() => {
+        const onBackPress = () => {
+            return true; // prevent default behavior
+        };
+        const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+        return () => subscription.remove();
+    }, []);
+
     const [order, setOrder] = useState<any>(null);
     const [customerName, setCustomerName] = useState("Pelanggan");
     const [isPaid, setIsPaid] = useState(false);

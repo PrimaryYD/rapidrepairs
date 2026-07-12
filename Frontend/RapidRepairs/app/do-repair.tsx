@@ -11,6 +11,7 @@ import {
     Modal,
     Animated,
     Easing,
+    BackHandler,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -31,6 +32,15 @@ type ImageType = {
 export default function DoRepairScreen() {
     const router = useRouter();
     const { orderId } = useLocalSearchParams();
+    
+    // Prevent Android hardware back button
+    useEffect(() => {
+        const onBackPress = () => {
+            return true; // prevent default behavior
+        };
+        const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+        return () => subscription.remove();
+    }, []);
     
     const [order, setOrder] = useState<any>(null);
     const [completionImages, setCompletionImages] = useState<{ [key: string]: ImageType[] }>({});

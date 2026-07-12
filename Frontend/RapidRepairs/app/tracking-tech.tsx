@@ -4,7 +4,8 @@ import {
     StyleSheet,
     TouchableOpacity,
     Image,
-    Linking
+    Linking,
+    BackHandler
 } from "react-native";
 import { useEffect, useState, useRef } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -22,6 +23,15 @@ export default function TrackingTech() {
 
     const router = useRouter();
     const { orderId } = useLocalSearchParams();
+
+    // Prevent Android hardware back button
+    useEffect(() => {
+        const onBackPress = () => {
+            return true; // prevent default behavior
+        };
+        const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+        return () => subscription.remove();
+    }, []);
 
     const [order, setOrder] = useState<any>(null);
     const [techLocation, setTechLocation] = useState<any>(null);

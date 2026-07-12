@@ -5,6 +5,7 @@ import {
     StyleSheet,
     TouchableOpacity,
     ActivityIndicator,
+    BackHandler,
 } from "react-native";
 import { useEffect, useState } from "react";
 import { useLocalSearchParams, useRouter } from "expo-router";
@@ -17,6 +18,15 @@ export default function StartInspection() {
     const router = useRouter();
     const { orderId } = useLocalSearchParams();
     const [order, setOrder] = useState<any>(null);
+
+    // Prevent Android hardware back button
+    useEffect(() => {
+        const onBackPress = () => {
+            return true; // prevent default behavior
+        };
+        const subscription = BackHandler.addEventListener('hardwareBackPress', onBackPress);
+        return () => subscription.remove();
+    }, []);
 
     useEffect(() => {
         if (!orderId) return;

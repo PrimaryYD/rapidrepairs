@@ -138,22 +138,7 @@ export default function HomeTech() {
         return () => unsubAuth();
     }, []);
 
-    useFocusEffect(
-        useCallback(() => {
-            // When the screen is focused, do nothing automatically.
-            return () => {
-                // When the screen loses focus, if they are active, set them offline
-                // We shouldn't use state here since it might be stale in the cleanup function,
-                // but we can just fire a generic "set offline" update if there's a user.
-                const user = auth.currentUser;
-                if (user) {
-                    setIsActive(false); // Update local UI state just in case
-                    updateDoc(doc(db, "technicians", user.uid), { isActive: false })
-                        .catch((e) => console.log("Failed to auto-offline tech:", e));
-                }
-            };
-        }, [])
-    );
+    // (useFocusEffect removed — technician only goes offline if they toggle it or switch to User mode)
 
     const toggleStatus = async (val: boolean) => {
         const user = auth.currentUser;
@@ -359,7 +344,7 @@ export default function HomeTech() {
 
         setShowPopup(false);
 
-        router.push({
+        router.replace({
             pathname: "/tracking-tech",
             params: { orderId: incomingOrder.id }
         });
@@ -446,7 +431,14 @@ export default function HomeTech() {
                         {/* CUSTOMER HOME */}
                         <TouchableOpacity 
                             style={styles.notifBadge}
-                            onPress={() => router.replace("/Homepage" as any)}
+                            onPress={async () => {
+                                const user = auth.currentUser;
+                                if (user && isActive) {
+                                    setIsActive(false);
+                                    await updateDoc(doc(db, "technicians", user.uid), { isActive: false });
+                                }
+                                router.replace("/Homepage" as any);
+                            }}
                         >
                             <Ionicons name="home-outline" size={22} color={Theme.colors.text} />
                         </TouchableOpacity>
