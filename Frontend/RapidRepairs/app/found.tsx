@@ -27,6 +27,7 @@ export default function FoundScreen() {
     const slideAnim = useRef(new Animated.Value(200)).current;
 
     const [locationPermissionGranted, setLocationPermissionGranted] = useState(true);
+    const [hideArrivedModal, setHideArrivedModal] = useState(false);
     const { showAlert, showConfirm } = useCustomAlert();
 
     const requestLocationPermission = async (forcePopup = false) => {
@@ -252,7 +253,7 @@ export default function FoundScreen() {
             )}
 
             {/* ARRIVED MODAL */}
-            <Modal visible={order.status === "arrived"} transparent animationType="fade">
+            <Modal visible={order.status === "arrived" && !hideArrivedModal} transparent animationType="fade">
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
                         <View style={styles.modalIconWrapper}>
@@ -264,10 +265,13 @@ export default function FoundScreen() {
                         </Text>
                         <AnimatedButton
                             title="Lanjut ke Pembayaran"
-                            onPress={() => router.push({
-                                pathname: "/pembayaran" as any,
-                                params: { orderId }
-                            })}
+                            onPress={() => {
+                                setHideArrivedModal(true);
+                                router.push({
+                                    pathname: "/pembayaran" as any,
+                                    params: { orderId }
+                                });
+                            }}
                             style={{ width: '100%', marginTop: 24 }}
                         />
                     </View>

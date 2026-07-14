@@ -110,8 +110,7 @@ export default function Home() {
             const data = docSnap.data();
             if (data.profilePictureUrl) setProfilePic(data.profilePictureUrl);
             if (data.name) {
-                // Get first name
-                setName(data.name.split(" ")[0]);
+                setName(data.name);
             }
             if (data.techLockoutUntil) {
                 setLockoutUntil(data.techLockoutUntil);

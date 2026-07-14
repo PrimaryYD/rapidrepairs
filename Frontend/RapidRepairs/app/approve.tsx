@@ -84,7 +84,10 @@ export default function AdminApprove() {
                     "ngrok-skip-browser-warning": "true"
                 }
             });
-            if (!techResponse.ok) throw new Error("Gagal mengambil data teknisi");
+            if (!techResponse.ok) {
+                const errText = await techResponse.text();
+                throw new Error(`Gagal mengambil data teknisi. Status: ${techResponse.status}, Text: ${errText.substring(0, 100)}`);
+            }
             const techData = await techResponse.json();
             const sortedTechs = techData.sort((a: any, b: any) => {
                 const dateA = a.createdAt?._seconds || 0;

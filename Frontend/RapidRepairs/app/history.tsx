@@ -124,7 +124,23 @@ export default function History() {
                 });
     };
 
-    const renderOrderItem = ({ item }: { item: any }) => {
+    const OrderHistoryCard = ({ item }: { item: any }) => {
+        const [techName, setTechName] = useState(item.technicianName || "Unknown");
+        const router = useRouter();
+
+        useEffect(() => {
+            if (item.technicianId) {
+                const techRef = doc(db, "technicians", item.technicianId);
+                const unsubTech = onSnapshot(techRef, (docSnap) => {
+                    if (docSnap.exists()) {
+                        const data = docSnap.data();
+                        if (data.name) setTechName(data.name);
+                    }
+                });
+                return () => unsubTech();
+            }
+        }, [item.technicianId]);
+
         // Hitung selisih hari
         let daysPassed = 0;
         let isExpired = false;
@@ -148,14 +164,14 @@ export default function History() {
         const isWarrantyApproved = item.status === "warranty_approved" || item.warranty_status === "approved";
 
         return (
-            <View style={styles.card}>
+            <TouchableOpacity style={styles.card} onPress={() => router.push({ pathname: "/order-details" as any, params: { orderId: item.id } })}>
                 <View style={styles.cardHeader}>
                     <View style={styles.avatarPlaceholder}>
                         <Ionicons name="construct" size={24} color={Theme.colors.primary} />
                     </View>
                     <View style={styles.headerInfo}>
                         <Text style={styles.serviceType}>{item.serviceType || "Layanan Perbaikan AC"}</Text>
-                        <Text style={styles.techName}>Teknisi: {item.technicianName || "Unknown"}</Text>
+                        <Text style={styles.techName}>Teknisi: {techName}</Text>
                     </View>
                     <View style={styles.statusBadge}>
                         <Text style={styles.statusText}>Selesai</Text>
@@ -183,31 +199,31 @@ export default function History() {
                             <Text style={styles.warrantyMessageTextPending}>Garansi sedang direview oleh Admin</Text>
                         </View>
                     )}
+
                     {isWarrantyApproved && (
                         <View style={styles.warrantyMessageApproved}>
                             <Ionicons name="checkmark-circle-outline" size={18} color={Theme.colors.success} style={{marginRight: 8}} />
                             <Text style={styles.warrantyMessageTextApproved}>Garansi Anda sudah di-approve, teknisi akan datang 2x24 jam.</Text>
                         </View>
                     )}
-                </View>
 
-                {/* Tombol Klaim Garansi */}
-                {!isWarrantyPending && !isWarrantyApproved && (
-                    <View style={styles.cardFooter}>
-                        {isExpired ? (
-                            <View style={[styles.warrantyBtn, styles.warrantyBtnExpired]}>
-                                <Text style={styles.warrantyBtnTextExpired}>Garansi Expired</Text>
-                            </View>
-                        ) : (
-                            <AnimatedButton
-                                title={`Claim Garansi (${3 - daysPassed} hari tersisa)`}
-                                onPress={() => handleClaimWarranty(item)}
-                                icon={<Ionicons name="shield-checkmark-outline" size={18} color="#FFF" />}
-                            />
-                        )}
-                    </View>
-                )}
-            </View>
+                    {!isWarrantyPending && !isWarrantyApproved && (
+                        <View style={styles.cardFooter}>
+                            {isExpired ? (
+                                <View style={[styles.warrantyBtn, styles.warrantyBtnExpired]}>
+                                    <Text style={styles.warrantyBtnTextExpired}>Garansi Expired</Text>
+                                </View>
+                            ) : (
+                                <AnimatedButton
+                                    title={`Claim Garansi (${3 - daysPassed} hari tersisa)`}
+                                    onPress={() => handleClaimWarranty(item)}
+                                    icon={<Ionicons name="shield-checkmark-outline" size={18} color="#FFF" />}
+                                />
+                            )}
+                        </View>
+                    )}
+                </View>
+            </TouchableOpacity>
         );
     };
 
@@ -235,7 +251,7 @@ export default function History() {
             ) : (
                 <FlatList
                     data={orders}
-                    renderItem={renderOrderItem}
+                    renderItem={({ item }) => <OrderHistoryCard item={item} />}
                     keyExtractor={(item) => item.id}
                     contentContainerStyle={styles.listContent}
                     showsVerticalScrollIndicator={false}

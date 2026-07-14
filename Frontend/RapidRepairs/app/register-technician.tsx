@@ -326,7 +326,8 @@ export default function RegisterTechnician() {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json",
-                    "bypass-tunnel-reminder": "true"
+                    "bypass-tunnel-reminder": "true",
+                    "ngrok-skip-browser-warning": "true"
                 },
                 body: JSON.stringify(payload),
             });
